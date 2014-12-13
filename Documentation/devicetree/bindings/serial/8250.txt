@@ -43,6 +43,10 @@ Optional properties:
   driver is allowed to detect support for the capability even without this
   property.
 
+Optional child node:
+- a device connected to the uart can be specified as child node with
+  compatible value.
+
 Note:
 * fsl,ns16550:
   ------------

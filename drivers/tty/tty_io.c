@@ -95,6 +95,7 @@
 #include <linux/seq_file.h>
 #include <linux/serial.h>
 #include <linux/ratelimit.h>
+#include <linux/of_platform.h>
 
 #include <linux/uaccess.h>
 
@@ -3317,6 +3318,11 @@ struct device *tty_register_device_attr(struct tty_driver *driver,
 	retval = device_register(dev);
 	if (retval)
 		goto error;
+	if (device && device->of_node)
+		/* Children are platform devices and will be
+		 * runtime_pm managed by this tty.
+		 */
+		of_platform_populate(device->of_node, NULL, NULL, dev);
 
 	return dev;
 
