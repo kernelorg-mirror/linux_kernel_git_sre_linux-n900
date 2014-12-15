@@ -320,6 +320,16 @@ config BT_ATH3K
 	  Say Y here to compile support for "Atheros firmware download driver"
 	  into the kernel or say M to compile it as module (ath3k).
 
+config BT_BCM2048
+	tristate "Broadcom 2048 driver"
+	depends on TTY && OF
+	select FW_LOADER
+	help
+	  The driver for Broadcom Bluetooth 2048 UART interface.
+
+	  Say Y here to comppile support for Broadcom BT-over-UART
+	  driver into the kernel or say M to compile it as module.
+
 config BT_WILINK
 	tristate "Texas Instruments WiLink7 driver"
 	depends on TI_ST
