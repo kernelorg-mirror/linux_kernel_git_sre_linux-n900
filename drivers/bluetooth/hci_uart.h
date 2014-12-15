@@ -35,7 +35,7 @@
 #define HCIUARTGETFLAGS		_IOR('U', 204, int)
 
 /* UART protocols */
-#define HCI_UART_MAX_PROTO	10
+#define HCI_UART_MAX_PROTO	11
 
 #define HCI_UART_H4	0
 #define HCI_UART_BCSP	1
@@ -47,6 +47,7 @@
 #define HCI_UART_BCM	7
 #define HCI_UART_QCA	8
 #define HCI_UART_AG6XX	9
+#define HCI_UART_NOKIA	10
 
 #define HCI_UART_RAW_DEVICE	0
 #define HCI_UART_RESET_ON_INIT	1
@@ -121,7 +122,7 @@ struct h4_recv_pkt {
 	u8  loff;	/* Data length offset in header */
 	u8  lsize;	/* Data length field size */
 	u16 maxlen;	/* Max overall packet length */
-	u8  align;	/* packet alignment (in bytes) */
+	bool wordaligned;	/* packets are word aligned */
 	int (*recv)(struct hci_dev *hdev, struct sk_buff *skb);
 };
 
@@ -130,24 +131,21 @@ struct h4_recv_pkt {
 	.hlen = HCI_ACL_HDR_SIZE, \
 	.loff = 2, \
 	.lsize = 2, \
-	.maxlen = HCI_MAX_FRAME_SIZE, \
-	.align = 1
+	.maxlen = HCI_MAX_FRAME_SIZE \
 
 #define H4_RECV_SCO \
 	.type = HCI_SCODATA_PKT, \
 	.hlen = HCI_SCO_HDR_SIZE, \
 	.loff = 2, \
 	.lsize = 1, \
-	.maxlen = HCI_MAX_SCO_SIZE, \
-	.align = 1
+	.maxlen = HCI_MAX_SCO_SIZE
 
 #define H4_RECV_EVENT \
 	.type = HCI_EVENT_PKT, \
 	.hlen = HCI_EVENT_HDR_SIZE, \
 	.loff = 1, \
 	.lsize = 1, \
-	.maxlen = HCI_MAX_EVENT_SIZE, \
-	.align = 1
+	.maxlen = HCI_MAX_EVENT_SIZE
 
 struct sk_buff *h4_recv_buf(struct hci_dev *hdev, struct sk_buff *skb,
 			    const unsigned char *buffer, int count,
@@ -192,4 +190,9 @@ int qca_deinit(void);
 #ifdef CONFIG_BT_HCIUART_AG6XX
 int ag6xx_init(void);
 int ag6xx_deinit(void);
+#endif
+
+#ifdef CONFIG_BT_HCIUART_NOKIA
+int nokia_init(void);
+int nokia_deinit(void);
 #endif

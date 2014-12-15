@@ -171,18 +171,8 @@ struct sk_buff *h4_recv_buf(struct hci_dev *hdev, struct sk_buff *skb,
 			    const unsigned char *buffer, int count,
 			    const struct h4_recv_pkt *pkts, int pkts_count)
 {
-	static uint8_t padding = 0;
-
 	while (count) {
 		int i, len;
-
-		/* remove padding bytes from buffer */
-		for (; padding && count > 0; padding--) {
-			count--;
-			buffer++;
-		}
-		if (!count)
-			break;
 
 		if (!skb) {
 			for (i = 0; i < pkts_count; i++) {
@@ -263,16 +253,24 @@ struct sk_buff *h4_recv_buf(struct hci_dev *hdev, struct sk_buff *skb,
 			}
 
 			if (!dlen) {
+				if ((&pkts[i])->wordaligned && !(skb->len % 2)) {
+					buffer++;
+					count--;
+				}
+
 				/* No more data, complete frame */
 				(&pkts[i])->recv(hdev, skb);
 				skb = NULL;
-				padding = skb->len % (&pkts[i])->align;
 			}
 		} else {
+			if ((&pkts[i])->wordaligned && !(skb->len % 2)) {
+				buffer++;
+				count--;
+			}
+
 			/* Complete frame */
 			(&pkts[i])->recv(hdev, skb);
 			skb = NULL;
-			padding = skb->len % (&pkts[i])->align;
 		}
 	}
 

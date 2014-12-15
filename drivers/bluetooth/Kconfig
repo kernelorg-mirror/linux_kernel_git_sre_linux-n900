@@ -86,6 +86,16 @@ config BT_HCIUART_H4
 
 	  Say Y here to compile support for HCI UART (H4) protocol.
 
+config BT_HCIUART_NOKIA
+	bool "UART Nokia H4+ protocol support"
+	depends on BT_HCIUART
+	help
+	  Nokia H4+ is serial protocol for communication between Bluetooth
+	  device and host. This protocol is required for Bluetooth devices
+	  with UART interface in Nokia devices.
+
+	  Say Y here to compile support for Nokia's H4+ protocol.
+
 config BT_HCIUART_BCSP
 	bool "BCSP protocol support"
 	depends on BT_HCIUART
