@@ -28,4 +28,81 @@ struct h4p_dev_struct {
 	unsigned long sysclk_speed;
 };
 
+#define HCI_H4P_BCM_BDADDR	0xfc01
+
+#define HCI_H4P_NEG_PKT		0x06
+#define HCI_H4P_ALIVE_PKT	0x07
+#define HCI_H4P_RADIO_PKT	0x08
+
+#define HCI_H4P_NEG_HDR_SIZE	1
+#define HCI_MAX_H4P_NEG_SIZE	255
+#define HCI_H4P_ALIVE_HDR_SIZE	1
+#define HCI_MAX_H4P_ALIVE_SIZE	255
+#define HCI_H4P_RADIO_HDR_SIZE	2
+
+#define H4P_PROTO_PKT		0x44
+#define H4P_PROTO_BYTE		0x4c
+
+#define H4P_NEG_REQ		0x00
+#define H4P_NEG_ACK		0x20
+#define H4P_NEG_NAK		0x40
+
+#define H4_TYPE_SIZE		1
+
+struct hci_h4p_neg_hdr {
+	__u8	dlen;
+} __packed;
+
+struct hci_h4p_neg_cmd {
+	__u8	ack;
+	__u16	baud;
+	__u16	unused1;
+	__u8	proto;
+	__u16	sys_clk;
+	__u16	unused2;
+} __packed;
+
+static inline struct hci_h4p_neg_hdr *hci_h4p_neg_hdr(const struct sk_buff *skb)
+{
+	return (struct hci_h4p_neg_hdr *) skb->data;
+}
+
+#define H4P_ALIVE_REQ   0x55
+#define H4P_ALIVE_RESP  0xcc
+
+struct hci_h4p_alive_hdr {
+	__u8	dlen;
+} __packed;
+
+struct hci_h4p_alive_pkt {
+	__u8	mid;
+	__u8	unused;
+} __packed;
+
+static inline struct hci_h4p_alive_hdr *hci_h4p_alive_hdr(const struct sk_buff *skb)
+{
+	return (struct hci_h4p_alive_hdr *) skb->data;
+}
+
+struct hci_h4p_neg_evt {
+	__u8	ack;
+	__u16	baud;
+	__u16	unused1;
+	__u8	proto;
+	__u16	sys_clk;
+	__u16	unused2;
+	__u8	man_id;
+	__u8	ver_id;
+} __packed;
+
+#define BT_BAUDRATE_DIVIDER     384000000
+#define BC4_MAX_BAUD_RATE       3692300
+#define MAX_BAUD_RATE           921600
+#define INIT_SPEED              120000
+
+struct hci_h4p_radio_hdr {
+	__u8	evt;
+	__u8	dlen;
+} __packed;
+
 #endif
