@@ -786,6 +786,9 @@ static int __init hci_uart_init(void)
 #ifdef CONFIG_BT_HCIUART_H4
 	h4_init();
 #endif
+#ifdef CONFIG_BT_HCIUART_H4P
+	h4p_init();
+#endif
 #ifdef CONFIG_BT_HCIUART_BCSP
 	bcsp_init();
 #endif
@@ -820,6 +823,9 @@ static void __exit hci_uart_exit(void)
 
 #ifdef CONFIG_BT_HCIUART_H4
 	h4_deinit();
+#endif
+#ifdef CONFIG_BT_HCIUART_H4P
+	h4p_deinit();
 #endif
 #ifdef CONFIG_BT_HCIUART_BCSP
 	bcsp_deinit();
