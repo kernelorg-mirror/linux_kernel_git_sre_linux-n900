@@ -885,6 +885,8 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	up->latency = up->calc_latency;
 	schedule_work(&up->qos_work);
 
+	dev_info(up->port.dev, "setting baud divisor: %d\n", quot);
+
 	up->dll = quot & 0xff;
 	up->dlh = quot >> 8;
 	up->mdr1 = UART_OMAP_MDR1_DISABLE;
