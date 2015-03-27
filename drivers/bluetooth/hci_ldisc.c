@@ -152,6 +152,8 @@ restart:
 	while ((skb = hci_uart_dequeue(hu))) {
 		int len;
 
+		print_hex_dump_bytes("send data: ", DUMP_PREFIX_NONE, skb->data, skb->len);
+
 		set_bit(TTY_DO_WRITE_WAKEUP, &tty->flags);
 		len = tty->ops->write(tty, skb->data, skb->len);
 		hdev->stat.byte_tx += len;
@@ -567,6 +569,9 @@ static void hci_uart_tty_receive(struct tty_struct *tty, const u8 *data,
 		return;
 
 	if (!test_bit(HCI_UART_PROTO_SET, &hu->flags))
+		return;
+
+	if (!hu->proto || !hu->proto->recv)
 		return;
 
 	spin_lock(&hu->rx_lock);
