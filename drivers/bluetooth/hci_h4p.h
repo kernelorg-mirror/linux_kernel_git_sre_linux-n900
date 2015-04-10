@@ -49,6 +49,20 @@ struct h4p_dev_struct {
 
 #define H4_TYPE_SIZE		1
 
+#define H4P_RECV_ALIVE \
+	.type = HCI_H4P_ALIVE_PKT, \
+	.hlen = HCI_H4P_ALIVE_HDR_SIZE, \
+	.loff = 0, \
+	.lsize = 1, \
+	.maxlen = HCI_MAX_H4P_ALIVE_SIZE
+
+#define H4P_RECV_NEG \
+	.type = HCI_H4P_NEG_PKT, \
+	.hlen = HCI_H4P_NEG_HDR_SIZE, \
+	.loff = 0, \
+	.lsize = 1, \
+	.maxlen = HCI_MAX_H4P_NEG_SIZE
+
 struct hci_h4p_neg_hdr {
 	__u8	dlen;
 } __packed;
