@@ -394,9 +394,7 @@ static int h4p_fw_command(struct hci_uart *hu, const struct firmware *fw,
 			    HCI_COMMAND_HDR_SIZE;
 
 		if (le16_to_cpu(cmd->opcode) == HCI_H4P_BCM_BDADDR) {
-			if(!bacmp(&h4p->bdaddr, BDADDR_ANY))
-				set_bit(HCI_QUIRK_INVALID_BDADDR,
-					&hu->hdev->quirks);
+			set_bit(HCI_QUIRK_INVALID_BDADDR, &hu->hdev->quirks);
 			if(cmd_len >= 10)
 				cmd_param = (u8*) &(h4p->bdaddr);
 		}
@@ -539,7 +537,7 @@ static int h4p_open(struct hci_uart *hu)
 		dev_err(serialdev, "bcm2048 not found!\n");
 		return -ENODEV;
 	}
-	
+
 	h4p->btdata = dev_get_drvdata(btdev);
 	if (!h4p->btdata)
 		return -EINVAL;
@@ -610,8 +608,6 @@ static int h4p_close(struct hci_uart *hu)
 
 	pm_runtime_disable(hu->tty->dev);
 
-	clear_bit(HCI_QUIRK_INVALID_BDADDR, &hu->hdev->quirks);
-
 	return 0;
 }
 
@@ -635,15 +631,18 @@ static int h4p_enqueue(struct hci_uart *hu, struct sk_buff *skb)
 	return 0;
 }
 
-void h4p_recv_negotiation_packet(struct hci_uart *hu, struct sk_buff *skb)
+int h4p_recv_negotiation_packet(struct hci_dev *hdev, struct sk_buff *skb)
 {
+	struct hci_uart *hu = hci_get_drvdata(hdev);
 	struct h4p_struct *h4p = hu->priv;
 	struct hci_h4p_neg_hdr *hdr;
 	struct hci_h4p_neg_evt *evt;
+	int ret = 0;
 
 	hdr = (struct hci_h4p_neg_hdr *)skb->data;
 	if (hdr->dlen != sizeof(*evt)) {
 		h4p->init_error = -EIO;
+		ret = -EIO;
 		goto finish_neg;
 	}
 
@@ -663,18 +662,22 @@ void h4p_recv_negotiation_packet(struct hci_uart *hu, struct sk_buff *skb)
 finish_neg:
 	complete(&h4p->init_completion);
 	kfree_skb(skb);
+	return ret;
 }
 
-void h4p_recv_alive_packet(struct hci_uart *hu, struct sk_buff *skb)
+int h4p_recv_alive_packet(struct hci_dev *hdev, struct sk_buff *skb)
 {
+	struct hci_uart *hu = hci_get_drvdata(hdev);
 	struct h4p_struct *h4p = hu->priv;
 	struct hci_h4p_alive_hdr *hdr;
 	struct hci_h4p_alive_pkt *pkt;
+	int ret = 0;
 
 	hdr = (struct hci_h4p_alive_hdr *)skb->data;
 	if (hdr->dlen != sizeof(*pkt)) {
 		dev_err(hu->tty->dev, "Corrupted alive message\n");
 		h4p->init_error = -EIO;
+		ret = -EIO;
 		goto finish_alive;
 	}
 
@@ -691,230 +694,31 @@ void h4p_recv_alive_packet(struct hci_uart *hu, struct sk_buff *skb)
 finish_alive:
 	complete(&h4p->init_completion);
 	kfree_skb(skb);
-	return;
+	return ret;
 }
 
 /* Recv data */
-static int h4p_reassembly(struct hci_dev *hdev, int type, void *data,
-			  int count)
+static const struct h4_recv_pkt h4p_recv_pkts[] = {
+	{ H4_RECV_ACL,		.recv = hci_recv_frame },
+	{ H4_RECV_SCO,		.recv = hci_recv_frame },
+	{ H4_RECV_EVENT,	.recv = hci_recv_frame },
+	{ H4P_RECV_ALIVE,	.recv = h4p_recv_alive_packet },
+	{ H4P_RECV_NEG,		.recv = h4p_recv_negotiation_packet },
+};
+
+static int h4p_recv(struct hci_uart *hu, const void *data, int count)
 {
-	int len = 0;
-	int hlen = 0;
-	int remain = count;
-	struct sk_buff *skb;
-	struct bt_skb_cb *scb;
-
-	if (type < HCI_ACLDATA_PKT || (type > HCI_EVENT_PKT &&
-	    type < HCI_H4P_NEG_PKT) || type > HCI_H4P_ALIVE_PKT) {
-		BT_ERR("Invalid Package received, type=0x%02x\n", type);
-		return -EILSEQ;
-	}
-
-	skb = hdev->reassembly[STREAM_REASSEMBLY];
-
-	if (!skb) {
-		switch (type) {
-		case HCI_ACLDATA_PKT:
-			len = HCI_MAX_FRAME_SIZE;
-			hlen = HCI_ACL_HDR_SIZE;
-			break;
-		case HCI_EVENT_PKT:
-			len = HCI_MAX_EVENT_SIZE;
-			hlen = HCI_EVENT_HDR_SIZE;
-			break;
-		case HCI_SCODATA_PKT:
-			len = HCI_MAX_SCO_SIZE;
-			hlen = HCI_SCO_HDR_SIZE;
-			break;
-		case HCI_H4P_NEG_PKT:
-			len = HCI_MAX_H4P_NEG_SIZE;
-			hlen = HCI_H4P_NEG_HDR_SIZE;
-			break;
-		case HCI_H4P_ALIVE_PKT:
-			len = HCI_MAX_H4P_ALIVE_SIZE;
-			hlen = HCI_H4P_ALIVE_HDR_SIZE;
-			break;
-		}
-
-		skb = bt_skb_alloc(len, GFP_ATOMIC);
-		if (!skb)
-			return -ENOMEM;
-
-		scb = (void *) skb->cb;
-		scb->expect = hlen;
-		scb->pkt_type = type;
-
-		hdev->reassembly[STREAM_REASSEMBLY] = skb;
-	}
-
-	while (count) {
-		scb = (void *) skb->cb;
-		len = min_t(uint, scb->expect, count);
-
-		memcpy(skb_put(skb, len), data, len);
-
-		count -= len;
-		data += len;
-		scb->expect -= len;
-		remain = count;
-
-		switch (type) {
-		case HCI_EVENT_PKT:
-			if (skb->len == HCI_EVENT_HDR_SIZE) {
-				struct hci_event_hdr *h = hci_event_hdr(skb);
-				scb->expect = h->plen;
-
-				if (skb_tailroom(skb) < scb->expect) {
-					kfree_skb(skb);
-					hdev->reassembly[STREAM_REASSEMBLY]
-						= NULL;
-					return -ENOMEM;
-				}
-			}
-			break;
-
-		case HCI_ACLDATA_PKT:
-			if (skb->len == HCI_ACL_HDR_SIZE) {
-				struct hci_acl_hdr *h = hci_acl_hdr(skb);
-				scb->expect = __le16_to_cpu(h->dlen);
-
-				if (skb_tailroom(skb) < scb->expect) {
-					kfree_skb(skb);
-					hdev->reassembly[STREAM_REASSEMBLY]
-						= NULL;
-					return -ENOMEM;
-				}
-			}
-			break;
-
-		case HCI_SCODATA_PKT:
-			if (skb->len == HCI_SCO_HDR_SIZE) {
-				struct hci_sco_hdr *h = hci_sco_hdr(skb);
-				scb->expect = h->dlen;
-
-				if (skb_tailroom(skb) < scb->expect) {
-					kfree_skb(skb);
-					hdev->reassembly[STREAM_REASSEMBLY]
-						= NULL;
-					return -ENOMEM;
-				}
-			}
-			break;
-
-		case HCI_H4P_NEG_PKT:
-			if (skb->len == HCI_H4P_NEG_HDR_SIZE) {
-				struct hci_h4p_neg_hdr *h;
-				h = hci_h4p_neg_hdr(skb);
-				scb->expect = h->dlen;
-
-				if (skb_tailroom(skb) < scb->expect) {
-					kfree_skb(skb);
-					hdev->reassembly[STREAM_REASSEMBLY]
-						= NULL;
-					return -ENOMEM;
-				}
-			}
-			break;
-
-		case HCI_H4P_ALIVE_PKT:
-			if (skb->len == HCI_H4P_ALIVE_HDR_SIZE) {
-				struct hci_h4p_alive_hdr *h;
-				h = hci_h4p_alive_hdr(skb);
-				scb->expect = h->dlen;
-
-				if (skb_tailroom(skb) < scb->expect) {
-					kfree_skb(skb);
-					hdev->reassembly[STREAM_REASSEMBLY]
-						= NULL;
-					return -ENOMEM;
-				}
-			}
-			break;
-
-		}
-
-		/* Complete frame */
-		if (scb->expect == 0) {
-			struct hci_uart *hu = hci_get_drvdata(hdev);
-
-			/* H4+ devices send word aligned packets (incl. type) */
-			//if ((skb->len % 2))
-			//	remain--;
-
-			bt_cb(skb)->pkt_type = type;
-
-			dev_dbg(hu->tty->dev, "received packet of type=%d, len=%d\n", type, skb->len);
-			print_hex_dump_bytes("received payload:", DUMP_PREFIX_NONE, skb->data, skb->len);
-
-			if(type == HCI_EVENT_PKT) {
-				if (skb->data[0] == HCI_EV_HARDWARE_ERROR)
-					dev_warn(hu->tty->dev, "hardware error event!\n");
-				else
-					dev_warn(hu->tty->dev, "event code = %d!\n", skb->data[0]);
-			}
-
-			switch(type) {
-			case HCI_H4P_ALIVE_PKT:
-				h4p_recv_alive_packet(hu, skb);
-				break;
-			case HCI_H4P_NEG_PKT:
-				h4p_recv_negotiation_packet(hu, skb);
-				break;
-			default:
-				hci_recv_frame(hdev, skb);
-				break;
-			}
-
-			hdev->reassembly[STREAM_REASSEMBLY] = NULL;
-			return remain;
-		}
-	}
-
-	return remain;
-}
-
-static int h4p_recv_stream_fragment(struct hci_dev *hdev, void *data, int count)
-{
-	int type;
-	int rem = 0;
-
-	while (count) {
-		struct sk_buff *skb = hdev->reassembly[STREAM_REASSEMBLY];
-
-		if (!skb) {
-			struct { char type; } *pkt;
-
-			/* Start of the frame */
-			pkt = data;
-			type = pkt->type;
-
-			data++;
-			count--;
-		} else
-			type = bt_cb(skb)->pkt_type;
-
-		rem = h4p_reassembly(hdev, type, data, count);
-		if (rem < 0)
-			return rem;
-
-		data += (count - rem);
-		count = rem;
-	}
-
-	return rem;
-}
-
-static int h4p_recv(struct hci_uart *hu, void *data, int count)
-{
-	int ret;
+	struct h4p_struct *h4p = hu->priv;
 
 	if (!test_bit(HCI_UART_REGISTERED, &hu->flags))
 		return -EUNATCH;
 
-	ret = h4p_recv_stream_fragment(hu->hdev, data, count);
-	if (ret < 0) {
-		BT_ERR("Frame Reassembly Failed: %d", ret);
-		return ret;
+	h4p->rx_skb = h4_recv_buf(hu->hdev, h4p->rx_skb, data, count,
+				  h4p_recv_pkts, ARRAY_SIZE(h4p_recv_pkts));
+	if (IS_ERR(h4p->rx_skb)) {
+		int err = PTR_ERR(h4p->rx_skb);
+		BT_ERR("%s: Frame reassembly failed (%d)", hu->hdev->name, err);
+		return err;
 	}
 
 	return count;
@@ -935,7 +739,7 @@ static struct hci_uart_proto h4pp = {
 	.dequeue	= h4p_dequeue,
 	.flush		= h4p_flush,
 	.setup		= h4p_setup,
-	// TODO: FIXME: setup, set_bdaddr
+	// TODO: FIXME: set_bdaddr
 };
 
 int __init h4p_init(void)
