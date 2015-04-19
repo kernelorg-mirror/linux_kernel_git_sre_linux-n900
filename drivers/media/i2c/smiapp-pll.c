@@ -16,6 +16,8 @@
  * General Public License for more details.
  */
 
+#define DEBUG
+
 #include <linux/device.h>
 #include <linux/gcd.h>
 #include <linux/lcm.h>
@@ -201,7 +203,7 @@ static int __smiapp_pll_calculate(
 			   / div);
 	dev_dbg(dev, "more_mul_max: max_op_sys_clk_div check: %u\n",
 		more_mul_max);
-	/* Ensure we won't go above min_pll_multiplier. */
+	/* Ensure we won't go above max_pll_multiplier. */
 	more_mul_max = min(more_mul_max,
 			   DIV_ROUND_UP(limits->max_pll_multiplier, mul));
 	dev_dbg(dev, "more_mul_max: min_pll_multiplier check: %u\n",
@@ -227,9 +229,12 @@ static int __smiapp_pll_calculate(
 
 	more_mul_factor = lcm(div, pll->pre_pll_clk_div) / div;
 	dev_dbg(dev, "more_mul_factor: %u\n", more_mul_factor);
+
+#if 0
 	more_mul_factor = lcm(more_mul_factor, op_limits->min_sys_clk_div);
 	dev_dbg(dev, "more_mul_factor: min_op_sys_clk_div: %d\n",
 		more_mul_factor);
+#endif
 	i = roundup(more_mul_min, more_mul_factor);
 	if (!is_one_or_even(i))
 		i <<= 1;
