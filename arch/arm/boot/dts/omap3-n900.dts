@@ -187,6 +187,7 @@
 &isp {
 	vdd-csiphy1-supply = <&vaux2>;
 	vdd-csiphy2-supply = <&vaux2>;
+	vdd-csib-supply = <&vaux2>;
 
 	ports {
 		port@1 {
@@ -194,10 +195,12 @@
 
 			csi_isp: endpoint {
 				remote-endpoint = <&csi_switch_in>;
+				/* TODO: must be acquired from bus-switch! */
+
 				bus-type = <3>; /* CCP2 */
-				strobe = <1>;
-				clock-inv = <1>;
-				crc = <1>;
+				strobe = <0>;
+				clock-inv = <0>;
+				crc = <0>;
 			};
 		};
 	};
@@ -557,9 +560,18 @@
 			csi_cam2: endpoint {
 				link-frequencies = /bits/ 64 <60000000>;
 				bus-type = <3>; /* CCP2 */
-				strobe = <1>;
-				clock-inv = <1>;
-				crc = <1>;
+				strobe = <0>;
+				clock-inv = <0>;
+				crc = <0>;
+
+				// TODO: mode = 0 (not evauluated in old code?)
+				// TODO: edge = 1, vs_edge = 0 (not evaluated in old code?)
+				// TODO: channel = 0, vpclk = 2
+				// TODO: data_start = 4, format = SGRBG10
+				// ~/src/linux-n900/drivers/media/video/smia-sensor.c
+				// ~/src/linux-n900/drivers/media/video/isp.c
+
+				// new code config->data_start, config->data_size
 
 				remote-endpoint = <&csi_switch_out2>;
 			};
@@ -721,7 +733,7 @@
 			csi_cam1: endpoint {
 				bus-type = <3>; /* CCP2 */
 				strobe = <1>;
-				clock-inv = <1>;
+				clock-inv = <0>;
 				crc = <1>;
 
 				remote-endpoint = <&csi_switch_out1>;
