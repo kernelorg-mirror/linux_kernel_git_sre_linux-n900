@@ -121,6 +121,8 @@ static int vbs_registered(struct v4l2_subdev *sd)
 	if (err)
 		return err;
 
+	dev_dbg(sd->dev, "notifier registered!\n");
+
 	return 0;
 }
 
@@ -174,6 +176,38 @@ static int vbs_link_setup(struct media_entity *entity,
 	}
 
 	return 0;
+}
+
+static int vbs_set_stream(struct v4l2_subdev *subdev, int enable)
+{
+	struct vbs_data *pdata = v4l2_get_subdevdata(subdev);
+	struct v4l2_async_subdev *asd;
+	struct vbs_async_subdev *ssd;
+	struct v4l2_subdev *sd;
+	int ret;
+
+	dev_dbg(subdev->dev, "vbs set stream: %d (state=%d)\n", enable, pdata->state);
+
+	switch(pdata->state) {
+	case CSI_SWITCH_PORT_1:
+		asd = pdata->notifier.subdevs[0];
+		ssd = container_of(asd, struct vbs_async_subdev, asd);
+		sd = ssd->sd;
+		break;
+	case CSI_SWITCH_PORT_2:
+		asd = pdata->notifier.subdevs[1];
+		ssd = container_of(asd, struct vbs_async_subdev, asd);
+		sd = ssd->sd;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	ret = v4l2_subdev_call(sd, video, s_stream, enable);
+
+	dev_dbg(subdev->dev, "vbs subdev set stream returned: %d\n", ret);
+
+	return ret;
 }
 
 static int vbs_subdev_notifier_bound(struct v4l2_async_notifier *async,
@@ -231,8 +265,12 @@ static const struct media_entity_operations vbs_media_ops = {
 	.link_validate = v4l2_subdev_link_validate,
 };
 
+static const struct v4l2_subdev_video_ops vbs_video_ops = {
+	.s_stream = vbs_set_stream,
+};
+
 static const struct v4l2_subdev_ops vbs_ops = {
-	/* empty, since only media entity operations are needed */
+	.video = &vbs_video_ops,
 };
 
 static int video_bus_switch_probe(struct platform_device *pdev)

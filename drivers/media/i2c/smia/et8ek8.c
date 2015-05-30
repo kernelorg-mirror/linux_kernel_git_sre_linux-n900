@@ -78,6 +78,8 @@ struct et8ek8_sensor {
 
 	struct mutex power_lock;
 	int power_count;
+
+	struct v4l2_ctrl *pixelrate;
 };
 
 #define to_et8ek8_sensor(sd)	container_of(sd, struct et8ek8_sensor, subdev)
@@ -1067,6 +1069,9 @@ static int et8ek8_init_controls(struct et8ek8_sensor *sensor)
 		v4l2_ctrl_new_std(&sensor->ctrl_handler, &et8ek8_ctrl_ops,
 				  V4L2_CID_EXPOSURE, min, max, min, max);
 
+	sensor->pixelrate = v4l2_ctrl_new_std(&sensor->ctrl_handler,
+		&et8ek8_ctrl_ops, V4L2_CID_PIXEL_RATE, 1, INT_MAX, 1, 1);
+
 	/* V4L2_CID_TEST_PATTERN and V4L2_CID_MODE_* */
 	for (i = 0; i < ARRAY_SIZE(et8ek8_ctrls); ++i)
 		v4l2_ctrl_new_custom(&sensor->ctrl_handler, &et8ek8_ctrls[i],
@@ -1127,6 +1132,7 @@ static int et8ek8_stream_on(struct et8ek8_sensor *sensor)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&sensor->subdev);
 
+	dev_dbg(&client->dev, "enable stream\n");
 	return smia_i2c_write_reg(client, SMIA_REG_8BIT, 0x1252, 0xb0);
 }
 
@@ -1134,6 +1140,7 @@ static int et8ek8_stream_off(struct et8ek8_sensor *sensor)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&sensor->subdev);
 
+	dev_dbg(&client->dev, "disable stream\n");
 	return smia_i2c_write_reg(client, SMIA_REG_8BIT, 0x1252, 0x30);
 }
 

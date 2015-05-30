@@ -149,7 +149,7 @@
 	};
 
 	video-bus-switch {
-		compatible = "video-bus-switch";
+		//compatible = "video-bus-switch";
 
 		switch-gpios = <&gpio4 1 GPIO_ACTIVE_HIGH>; /* 97 */
 
@@ -189,14 +189,18 @@
 	vdd-csiphy2-supply = <&vaux2>;
 	vdd-csib-supply = <&vaux2>;
 
+	pinctrl-names = "default";
+	pinctrl-0 = <&isp_ccp2_pins>;
+
 	ports {
 		port@1 {
 			reg = <1>;
 
 			csi_isp: endpoint {
-				remote-endpoint = <&csi_switch_in>;
-				/* TODO: must be acquired from bus-switch! */
+				//remote-endpoint = <&csi_switch_in>;
+				remote-endpoint = <&csi_cam2>;
 
+				/* TODO: must be acquired from bus-switch! */
 				bus-type = <3>; /* CCP2 */
 				strobe = <0>;
 				clock-inv = <0>;
@@ -368,6 +372,16 @@
 			0x15e (PIN_OUTPUT | MUX_MODE4)		/* gpio 157 => cmt_bsi */
 		>;
 	};
+
+	isp_ccp2_pins: pinmux_isp_ccp2_pins {
+		pinctrl-single,pins = <
+			0x0f2 (PIN_INPUT | MUX_MODE0)  /* cam_d6 (clk+) */
+			0x0f4 (PIN_INPUT | MUX_MODE0)  /* cam_d7 (clk-) */
+			0x0f6 (PIN_INPUT | MUX_MODE0)  /* cam_d8 (dat+) */
+			0x0f8 (PIN_INPUT | MUX_MODE0)  /* cam_d9 (dat-) */
+			0x0e0 (PIN_OUTPUT | MUX_MODE0) /* cam_xclka */
+		>;
+	};
 };
 
 &i2c1 {
@@ -397,24 +411,28 @@
 	regulator-name = "VCSI";
 	regulator-min-microvolt = <1800000>;
 	regulator-max-microvolt = <1800000>;
+	regulator-always-on; // test
 };
 
 &vaux3 {
 	regulator-name = "VMMC2_30";
 	regulator-min-microvolt = <2800000>;
 	regulator-max-microvolt = <3000000>;
+	regulator-always-on; // test
 };
 
 &vaux4 {
 	regulator-name = "VCAM_ANA_28";
 	regulator-min-microvolt = <2800000>;
 	regulator-max-microvolt = <2800000>;
+	regulator-always-on; // test
 };
 
 &vmmc1 {
 	regulator-name = "VMMC1";
 	regulator-min-microvolt = <1850000>;
 	regulator-max-microvolt = <3150000>;
+	regulator-always-on; // test
 };
 
 &vmmc2 {
@@ -442,12 +460,14 @@
 	regulator-name = "VMMC2_IO_18";
 	regulator-min-microvolt = <1800000>;
 	regulator-max-microvolt = <1800000>;
+	regulator-always-on; // test
 };
 
 &vio {
 	regulator-name = "VIO";
 	regulator-min-microvolt = <1800000>;
 	regulator-max-microvolt = <1800000>;
+	regulator-always-on; // test
 };
 
 &vintana1 {
@@ -556,6 +576,8 @@
 		clocks = <&isp 0>;
 		clock-frequency = <9600000>;
 
+		reset-gpios = <&gpio4 1 GPIO_ACTIVE_HIGH>; /* 97 */ // TODO: FIXME
+
 		port {
 			csi_cam2: endpoint {
 				link-frequencies = /bits/ 64 <60000000>;
@@ -573,7 +595,8 @@
 
 				// new code config->data_start, config->data_size
 
-				remote-endpoint = <&csi_switch_out2>;
+				//remote-endpoint = <&csi_switch_out2>;
+				remote-endpoint = <&csi_isp>; // TODO: FIXME
 			};
 		};
 	};

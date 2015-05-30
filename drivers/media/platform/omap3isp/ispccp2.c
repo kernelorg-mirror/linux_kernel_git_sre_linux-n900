@@ -156,6 +156,7 @@ static int ccp2_if_enable(struct isp_ccp2_device *ccp2, u8 enable)
 
 	if (enable && ccp2->vdds_csib) {
 		ret = regulator_enable(ccp2->vdds_csib);
+		dev_dbg(isp->dev, "enable regulator (ret=%d)\n", ret);
 		if (ret < 0)
 			return ret;
 	}
@@ -171,8 +172,10 @@ static int ccp2_if_enable(struct isp_ccp2_device *ccp2, u8 enable)
 			ISPCCP2_CTRL_MODE | ISPCCP2_CTRL_IF_EN,
 			enable ? (ISPCCP2_CTRL_MODE | ISPCCP2_CTRL_IF_EN) : 0);
 
-	if (!enable && ccp2->vdds_csib)
+	if (!enable && ccp2->vdds_csib) {
 		regulator_disable(ccp2->vdds_csib);
+		dev_dbg(isp->dev, "disable regulator\n");
+	}
 
 	return 0;
 }
@@ -212,6 +215,8 @@ static int ccp2_phyif_config(struct isp_ccp2_device *ccp2,
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 	u32 val;
+
+	dev_dbg(isp->dev, "%s: setup phy\n", __func__);
 
 	/* CCP2B mode */
 	val = isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_CTRL) |
@@ -257,7 +262,8 @@ static void ccp2_vp_config(struct isp_ccp2_device *ccp2,
 
 	/* ISPCCP2_CTRL Video port */
 	val = isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_CTRL);
-	val |= ISPCCP2_CTRL_VP_ONLY_EN;	/* Disable the memory write port */
+	//val |= ISPCCP2_CTRL_VP_ONLY_EN;	/* Disable the memory write port */
+	val &= ~ISPCCP2_CTRL_VP_ONLY_EN;	/* Enabled in nokia's kernel */
 
 	if (isp->revision == ISP_REVISION_15_0) {
 		vpclk_div = clamp_t(unsigned int, vpclk_div, 1, 65536);
@@ -269,6 +275,8 @@ static void ccp2_vp_config(struct isp_ccp2_device *ccp2,
 		BIT_SET(val, ISPCCP2_CTRL_VP_OUT_CTRL_SHIFT,
 			ISPCCP2_CTRL_VP_OUT_CTRL_MASK, vpclk_div - 1);
 	}
+
+	dev_dbg(isp->dev, "Configuration: vpclk_div=%x\n", vpclk_div);
 
 	isp_reg_writel(isp, val, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_CTRL);
 }
@@ -297,6 +305,10 @@ static void ccp2_lcx_config(struct isp_ccp2_device *ccp2,
 		format = ISPCCP2_LCx_CTRL_FORMAT_RAW10_VP;	/* RAW10+VP */
 		break;
 	}
+
+	dev_dbg(isp->dev, "LCX CFG: data_start=%x, data_size=%x, format=%x, crc=%x\n",
+		config->data_start, config->data_size, format, config->crc);
+
 	/* ISPCCP2_LCx_CTRL logical channel #0 */
 	val = isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_LCx_CTRL(0))
 			    | (ISPCCP2_LCx_CTRL_REGION_EN); /* Region */
@@ -334,6 +346,13 @@ static void ccp2_lcx_config(struct isp_ccp2_device *ccp2,
 	      ISPCCP2_LC01_IRQSTATUS_LC0_FW_IRQ |
 	      ISPCCP2_LC01_IRQSTATUS_LC0_FSC_IRQ |
 	      ISPCCP2_LC01_IRQSTATUS_LC0_SSC_IRQ;
+	
+	/* Enable status irq for logical channel #0 */
+	val |= ISPCCP2_LC01_IRQSTATUS_LC0_FS_IRQ;
+	val |= ISPCCP2_LC01_IRQSTATUS_LC0_LE_IRQ;
+	val |= ISPCCP2_LC01_IRQSTATUS_LC0_LS_IRQ;
+	val |= ISPCCP2_LC01_IRQSTATUS_LC0_FE_IRQ;
+	val |= ISPCCP2_LC01_IRQSTATUS_LC0_COUNT_IRQ;
 
 	isp_reg_writel(isp, val, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_LC01_IRQSTATUS);
 	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_LC01_IRQENABLE, val);
@@ -579,6 +598,9 @@ void omap3isp_ccp2_isr(struct isp_ccp2_device *ccp2)
 				      ISPCCP2_LCM_IRQSTATUS);
 	isp_reg_writel(isp, lcm_irqstatus, OMAP3_ISP_IOMEM_CCP2,
 		       ISPCCP2_LCM_IRQSTATUS);
+
+	dev_dbg(isp->dev, "CCP2 irq: lcx=0x%x, lcm=0x%x\n", lcx_irqstatus, lcm_irqstatus);
+
 	/* Errors */
 	if (lcx_irqstatus & ISPCCP2_LC01_ERROR) {
 		pipe->error = true;
@@ -1138,11 +1160,14 @@ int omap3isp_ccp2_init(struct isp_device *isp)
 	 * TODO: Don't hardcode the usage of PHY1 (shared with CSI2c).
 	 */
 	if (isp->revision == ISP_REVISION_2_0) {
-		ccp2->vdds_csib = devm_regulator_get(isp->dev, "vdds_csib");
+		ccp2->vdds_csib = devm_regulator_get(isp->dev, "vdd-csib");
 		if (IS_ERR(ccp2->vdds_csib)) {
+			ret = PTR_ERR(ccp2->vdds_csib);
 			dev_dbg(isp->dev,
-				"Could not get regulator vdds_csib\n");
+				"Could not get regulator vdd-csib: %d\n", ret);
 			ccp2->vdds_csib = NULL;
+			if (ret == -EPROBE_DEFER)
+				return ret;
 		}
 	} else if (isp->revision == ISP_REVISION_15_0) {
 		ccp2->phy = &isp->isp_csiphy1;

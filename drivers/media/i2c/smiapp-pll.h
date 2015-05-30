@@ -22,6 +22,7 @@
 /* CSI-2 or CCP-2 */
 #define SMIAPP_PLL_BUS_TYPE_CSI2				0x00
 #define SMIAPP_PLL_BUS_TYPE_PARALLEL				0x01
+#define SMIAPP_PLL_BUS_TYPE_CCP2				0x02
 
 /* op pix clock is for all lanes in total normally */
 #define SMIAPP_PLL_FLAG_OP_PIX_CLOCK_PER_LANE			(1 << 0)

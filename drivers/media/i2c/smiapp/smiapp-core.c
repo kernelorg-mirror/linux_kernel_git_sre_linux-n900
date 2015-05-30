@@ -199,8 +199,17 @@ static int smiapp_read_frame_fmt(struct smiapp_sensor *sensor)
 
 static int smiapp_pll_configure(struct smiapp_sensor *sensor)
 {
+	struct i2c_client *client = v4l2_get_subdevdata(&sensor->src->sd);
 	struct smiapp_pll *pll = &sensor->pll;
 	int rval;
+
+	dev_dbg(&client->dev, "VT_PIX_CLK_DIV: %u\n", pll->vt.pix_clk_div);
+	dev_dbg(&client->dev, "VT_SYS_CLK_DIV: %u\n", pll->vt.sys_clk_div);
+	dev_dbg(&client->dev, "PRE_PLL_CLK_DIV: %u\n", pll->pre_pll_clk_div);
+	dev_dbg(&client->dev, "PLL_MULTIPLIER: %u\n", pll->pll_multiplier);
+	dev_dbg(&client->dev, "REQUESTED_LINK_BIT_RATE_MBPS: %u\n", DIV_ROUND_UP(pll->op.sys_clk_freq_hz, 1000000 / 256 / 256));
+	dev_dbg(&client->dev, "OP_PIX_CLK_DIV: %u\n", pll->op.pix_clk_div);
+	dev_dbg(&client->dev, "OP_SYS_CLK_DIV: %u\n", pll->op.sys_clk_div);
 
 	rval = smiapp_write(
 		sensor, SMIAPP_REG_U16_VT_PIX_CLK_DIV, pll->vt.pix_clk_div);
@@ -1300,6 +1309,8 @@ static int smiapp_power_on(struct smiapp_sensor *sensor)
 	if (rval < 0)
 		return rval;
 
+	smiapp_write(sensor, 0x311c, 0xa0); // TODO: quirk for vs6555
+
 	rval = smiapp_call_quirk(sensor, post_poweron);
 	if (rval) {
 		dev_err(&client->dev, "post_poweron quirks failed\n");
@@ -1400,6 +1411,9 @@ static int smiapp_start_streaming(struct smiapp_sensor *sensor)
 	int rval;
 
 	mutex_lock(&sensor->mutex);
+
+	dev_dbg(&client->dev, "CSI_DATA_FORMAT: 0x%02x%02x\n",
+		sensor->csi_format->width, sensor->csi_format->compressed);
 
 	rval = smiapp_write(sensor, SMIAPP_REG_U16_CSI_DATA_FORMAT,
 			    (sensor->csi_format->width << 8) |
@@ -1545,8 +1559,11 @@ out:
 
 static int smiapp_set_stream(struct v4l2_subdev *subdev, int enable)
 {
+	struct i2c_client *client = v4l2_get_subdevdata(subdev);
 	struct smiapp_sensor *sensor = to_smiapp_sensor(subdev);
 	int rval;
+
+	dev_dbg(&client->dev, "set stream: %d\n", enable); // FIXME: set_stream is never called?!
 
 	if (sensor->streaming == enable)
 		return 0;
@@ -2702,13 +2719,18 @@ static int smiapp_init(struct smiapp_sensor *sensor)
 	sensor->scale_m = sensor->limits[SMIAPP_LIMIT_SCALER_N_MIN];
 
 	/* prepare PLL configuration input values */
-	pll->bus_type = SMIAPP_PLL_BUS_TYPE_CSI2;
+	if(sensor->platform_data->csi_signalling_mode == SMIAPP_CSI_SIGNALLING_MODE_CSI2)
+		pll->bus_type = SMIAPP_PLL_BUS_TYPE_CSI2;
+	else
+		pll->bus_type = SMIAPP_PLL_BUS_TYPE_CCP2;
 	pll->csi2.lanes = sensor->platform_data->lanes;
 	pll->ext_clk_freq_hz = sensor->platform_data->ext_clk;
 	pll->scale_n = sensor->limits[SMIAPP_LIMIT_SCALER_N_MIN];
 	/* Profile 0 sensors have no separate OP clock branch. */
-	if (sensor->minfo.smiapp_profile == SMIAPP_PROFILE_0)
+	if (sensor->minfo.smiapp_profile == SMIAPP_PROFILE_0) {
+		dev_dbg(&client->dev, "device has no op clocks!\n");
 		pll->flags |= SMIAPP_PLL_FLAG_NO_OP_CLOCKS;
+	}
 
 	for (i = 0; i < SMIAPP_SUBDEVS; i++) {
 		struct {

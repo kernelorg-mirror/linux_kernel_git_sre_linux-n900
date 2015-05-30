@@ -439,6 +439,9 @@ int smiapp_pll_calculate(struct device *dev,
 			/ DIV_ROUND_UP(pll->bits_per_pixel,
 				       pll->parallel.bus_width);
 		break;
+	case SMIAPP_PLL_BUS_TYPE_CCP2:
+		pll->pll_op_clk_freq_hz = pll->link_freq;
+		break;
 	default:
 		return -EINVAL;
 	}

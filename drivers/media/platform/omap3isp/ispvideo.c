@@ -950,6 +950,8 @@ static int isp_video_check_external_subdevs(struct isp_video *video,
 
 	pipe->external_rate = ctrl.value64;
 
+	dev_dbg(isp->dev, "external pixel rate: %d!\n", pipe->external_rate);
+
 	if (pipe->entities & (1 << isp->isp_ccdc.subdev.entity.id)) {
 		unsigned int rate = UINT_MAX;
 		/*

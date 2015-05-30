@@ -42,6 +42,8 @@
  * published by the Free Software Foundation.
  */
 
+#define ISP_ISR_DEBUG
+
 #include <asm/cacheflush.h>
 
 #include <linux/clk.h>
@@ -196,6 +198,9 @@ static int isp_xclk_enable(struct clk_hw *hw)
 	struct isp_xclk *xclk = to_isp_xclk(hw);
 	unsigned long flags;
 
+	dev_dbg(xclk->isp->dev, "enable cam_xclk%c\n",
+		xclk->id == ISP_XCLK_A ? 'a' : 'b');
+
 	spin_lock_irqsave(&xclk->lock, flags);
 	isp_xclk_update(xclk, xclk->divider);
 	xclk->enabled = true;
@@ -208,6 +213,9 @@ static void isp_xclk_disable(struct clk_hw *hw)
 {
 	struct isp_xclk *xclk = to_isp_xclk(hw);
 	unsigned long flags;
+
+	dev_dbg(xclk->isp->dev, "disable cam_xclk%c\n",
+		xclk->id == ISP_XCLK_A ? 'a' : 'b');
 
 	spin_lock_irqsave(&xclk->lock, flags);
 	isp_xclk_update(xclk, 0);
@@ -1532,6 +1540,8 @@ static int isp_enable_clocks(struct isp_device *isp)
 	int r;
 	unsigned long rate;
 
+	dev_dbg(isp->dev, "enable clocks\n");
+
 	r = clk_prepare_enable(isp->clock[ISP_CLK_CAM_ICK]);
 	if (r) {
 		dev_err(isp->dev, "failed to enable cam_ick clock\n");
@@ -1573,6 +1583,7 @@ out_clk_enable_ick:
  */
 static void isp_disable_clocks(struct isp_device *isp)
 {
+	dev_dbg(isp->dev, "disable clocks\n");
 	clk_disable_unprepare(isp->clock[ISP_CLK_CAM_ICK]);
 	clk_disable_unprepare(isp->clock[ISP_CLK_CAM_MCLK]);
 	clk_disable_unprepare(isp->clock[ISP_CLK_CSI2_FCK]);
@@ -2026,7 +2037,6 @@ static int isp_register_entities(struct isp_device *isp)
 done:
 	if (ret < 0) {
 		isp_unregister_entities(isp);
-		v4l2_async_notifier_unregister(&isp->notifier);
 	}
 
 	return ret;
@@ -2286,6 +2296,9 @@ static void isp_of_parse_node_csi1(struct device *dev,
 	buscfg->bus.ccp2.phy_layer = vep->bus.mipi_csi1.strobe;
 	buscfg->bus.ccp2.ccp2_mode = vep->bus_type == V4L2_MBUS_CCP2;
 
+	/* FIXME: get from DT */
+	buscfg->bus.ccp2.vpclk_div = 2;
+
 	dev_dbg(dev, "clock_inv %u strobe %u ccp2 %u\n",
 		buscfg->bus.ccp2.strobe_clk_pol,
 		buscfg->bus.ccp2.phy_layer,
@@ -2295,7 +2308,7 @@ static void isp_of_parse_node_csi1(struct device *dev,
 	 * Implement a way to obtain this information from the
 	 * sensor. Frame descriptors, perhaps?
 	 */
-	buscfg->bus.ccp2.crc = 1;
+	buscfg->bus.ccp2.crc = 0;
 }
 
 static void isp_of_parse_node_csi2(struct device *dev,
@@ -2491,10 +2504,6 @@ static int isp_probe(struct platform_device *pdev)
 		ret = isp_of_parse_nodes(&pdev->dev, &isp->notifier);
 		if (ret < 0)
 			return ret;
-		ret = v4l2_async_notifier_register(&isp->v4l2_dev,
-						   &isp->notifier);
-		if (ret)
-			return ret;
 	} else {
 		isp->pdata = pdev->dev.platform_data;
 		isp->syscon = syscon_regmap_lookup_by_pdevname("syscon.0");
@@ -2632,11 +2641,17 @@ static int isp_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto error_modules;
 
+	ret = v4l2_async_notifier_register(&isp->v4l2_dev, &isp->notifier);
+	if (ret)
+		goto error_entities;
+
 	isp_core_init(isp, 1);
 	omap3isp_put(isp);
 
 	return 0;
 
+error_entities:
+	isp_unregister_entities(isp);
 error_modules:
 	isp_cleanup_modules(isp);
 error_iommu:
@@ -2646,6 +2661,8 @@ error_isp:
 	__omap3isp_put(isp, false);
 error:
 	mutex_destroy(&isp->isp_mutex);
+
+	dev_err(&pdev->dev, "Registering ISP failed: %d\n", ret);
 
 	return ret;
 }

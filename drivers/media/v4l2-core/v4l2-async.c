@@ -96,6 +96,8 @@ static int v4l2_async_test_notify(struct v4l2_async_notifier *notifier,
 	sd->asd = asd;
 	sd->notifier = notifier;
 
+	dev_warn(notifier->v4l2_dev->dev, "try to bind %s\n", dev_name(sd->dev));
+
 	if (notifier->bound) {
 		ret = notifier->bound(notifier, sd, asd);
 		if (ret < 0) {
