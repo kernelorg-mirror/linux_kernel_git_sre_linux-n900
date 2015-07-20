@@ -102,28 +102,8 @@ static int h4p_set_rts(struct hci_uart *hu, bool state)
 
 static void h4p_set_speed(struct hci_uart *hu, unsigned long speed)
 {
-	struct ktermios old_termios;
-
 	dev_dbg(hu->tty->dev, "setting speed to %lu baud\n", speed);
-
-	down_write(&hu->tty->termios_rwsem);
-	old_termios = hu->tty->termios;
-	/* setup baud rate */
-	tty_encode_baud_rate(hu->tty, speed, speed);
-	/* 8 bit data */
-	hu->tty->termios.c_cflag |= CS8;
-	/* enable receiver */
-	hu->tty->termios.c_cflag |= CREAD;
-	/* ignore CD signal */
-	hu->tty->termios.c_cflag |= CLOCAL;
-	/* use one stop bit */
-	hu->tty->termios.c_cflag &= ~CSTOPB;
-	/* disable parity */
-	hu->tty->termios.c_cflag &= ~PARENB;
-	/* enable cts and rts */
-	hu->tty->termios.c_cflag |= CRTSCTS;
-	hu->tty->ops->set_termios(hu->tty, &old_termios);
-	up_write(&hu->tty->termios_rwsem);
+	hci_uart_set_baudrate(hu, speed);
 }
 
 static int btdev_match(struct device *child, void *data)
@@ -161,6 +141,8 @@ static int h4p_reset(struct hci_uart *hu)
 
 	dev_dbg(hu->tty->dev, "reset BT device...\n");
 
+	hci_uart_init_tty(hu);
+	h4p_set_rts(hu, false);
 	h4p_set_speed(hu, INIT_SPEED);
 
 	/* flush queues */
@@ -318,13 +300,13 @@ static int h4p_send_negotiation(struct hci_uart *hu)
 	init_completion(&h4p->init_completion);
 
 	skb_queue_tail(&h4p->txq, skb);
-	h4p_set_rts(hu, true);
+	//h4p_set_rts(hu, true);
 	hci_uart_tx_wakeup(hu);
 
 	/* disable BT wakeup (this may be checked by BT module during init) */
 	/* TODO: fast enough? */
-	tty_wait_until_sent(hu->tty, 0);
-	gpiod_set_value(h4p->btdata->wakeup_bt, 0);
+	//tty_wait_until_sent(hu->tty, 0);
+	//gpiod_set_value(h4p->btdata->wakeup_bt, 0);
 
 	if (!wait_for_completion_interruptible_timeout(&h4p->init_completion,
 		msecs_to_jiffies(1000))) {
@@ -351,8 +333,8 @@ static int h4p_send_negotiation(struct hci_uart *hu)
 	h4p->negotiated = true;
 
 	/* re-enable BT wakeup */
-	msleep(100);
-	gpiod_set_value(h4p->btdata->wakeup_bt, 1);
+	//msleep(100);
+	//gpiod_set_value(h4p->btdata->wakeup_bt, 1);
 
 	return 0;
 }
@@ -471,7 +453,7 @@ static int h4p_setup(struct hci_uart *hu)
 		return err;
 	}
 
-#if 0
+#if 1
 	/* ~. verify connection using alive packet */
 	err = h4p_send_alive_packet(hu);
 	if (err < 0) {
