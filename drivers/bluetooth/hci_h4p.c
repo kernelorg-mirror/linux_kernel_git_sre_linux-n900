@@ -95,9 +95,9 @@ static int h4p_set_rts(struct hci_uart *hu, bool state)
 	dev_dbg(hu->tty->dev, "setting rts: %u\n", state);
 
 	if(state)
-		return hu->tty->ops->tiocmset(hu->tty, TIOCM_RTS, 0);
+		return hu->tty->ops->tiocmset(hu->tty, TIOCM_RTS, 0 | TIOCM_OUT2 | TIOCM_DTR);
 	else
-		return hu->tty->ops->tiocmset(hu->tty, 0, TIOCM_RTS);
+		return hu->tty->ops->tiocmset(hu->tty, 0, TIOCM_RTS | TIOCM_OUT2 | TIOCM_DTR);
 }
 
 static void h4p_set_speed(struct hci_uart *hu, unsigned long speed)
@@ -141,13 +141,14 @@ static int h4p_reset(struct hci_uart *hu)
 
 	dev_dbg(hu->tty->dev, "reset BT device...\n");
 
-	hci_uart_init_tty(hu);
-	h4p_set_rts(hu, false);
-	h4p_set_speed(hu, INIT_SPEED);
-
 	/* flush queues */
 	tty_ldisc_flush(hu->tty);
 	tty_driver_flush_buffer(hu->tty);
+
+	/* init uart */
+	hci_uart_init_tty(hu);
+	h4p_set_speed(hu, INIT_SPEED);
+	h4p_set_rts(hu, false);
 
 	/* reset routine */
 	gpiod_set_value(h4p->btdata->reset, 0);
@@ -158,7 +159,7 @@ static int h4p_reset(struct hci_uart *hu)
 	err = gpiod_get_value(h4p->btdata->wakeup_host);
 	if (err == 1) {
 		dev_err(hu->tty->dev, "reset: host wakeup not low!\n");
-		return -EPROTO;
+		//return -EPROTO;
 	}
 
 	gpiod_set_value(h4p->btdata->reset, 1);
@@ -299,17 +300,14 @@ static int h4p_send_negotiation(struct hci_uart *hu)
 	h4p->init_error = 0;
 	init_completion(&h4p->init_completion);
 
+	h4p_set_rts(hu, false);
 	skb_queue_tail(&h4p->txq, skb);
-	//h4p_set_rts(hu, true);
 	hci_uart_tx_wakeup(hu);
-
-	/* disable BT wakeup (this may be checked by BT module during init) */
-	/* TODO: fast enough? */
-	//tty_wait_until_sent(hu->tty, 0);
-	//gpiod_set_value(h4p->btdata->wakeup_bt, 0);
+	msleep(10);
+	h4p_set_rts(hu, true);
 
 	if (!wait_for_completion_interruptible_timeout(&h4p->init_completion,
-		msecs_to_jiffies(1000))) {
+		msecs_to_jiffies(10000))) {
 		return -ETIMEDOUT;
 	}
 
@@ -331,10 +329,6 @@ static int h4p_send_negotiation(struct hci_uart *hu)
 	dev_dbg(hu->tty->dev, "Negotiation successful...\n");
 
 	h4p->negotiated = true;
-
-	/* re-enable BT wakeup */
-	//msleep(100);
-	//gpiod_set_value(h4p->btdata->wakeup_bt, 1);
 
 	return 0;
 }
@@ -449,8 +443,7 @@ static int h4p_setup(struct hci_uart *hu)
 	err = h4p_reset(hu);
 	if (err < 0) {
 		dev_err(hu->tty->dev, "Reset failed: %d\n", err);
-		pm_runtime_put(hu->tty->dev);
-		return err;
+		goto out;
 	}
 
 #if 1
@@ -458,7 +451,7 @@ static int h4p_setup(struct hci_uart *hu)
 	err = h4p_send_alive_packet(hu);
 	if (err < 0) {
 		dev_err(hu->tty->dev, "Initial alive check failed: %d\n", err);
-		return err;
+		goto out;
 	}
 
 	dev_info(hu->tty->dev, "Bluetooth H4+ device found!\n");
@@ -468,33 +461,29 @@ static int h4p_setup(struct hci_uart *hu)
 	err = h4p_send_negotiation(hu);
 	if (err < 0) {
 		dev_err(hu->tty->dev, "Negotiation failed: %d\n", err);
-		pm_runtime_put(hu->tty->dev);
-		return err;
+		goto out;
 	}
 
 	/* 2. verify correct setup using alive packet */
 	err = h4p_send_alive_packet(hu);
 	if (err < 0) {
 		dev_err(hu->tty->dev, "Alive check failed: %d\n", err);
-		pm_runtime_put(hu->tty->dev);
-		return err;
+		goto out;
 	}
 
 	/* 3. send firmware */
 	err = h4p_setup_fw(hu);
 	if (err < 0) {
 		dev_err(hu->tty->dev, "Could not setup FW: %d\n", err);
-		pm_runtime_put(hu->tty->dev);
-		return err;
+		goto out;
 	}
 
-	h4p_set_rts(hu, false);
 	h4p_set_speed(hu, BC4_MAX_BAUD_RATE);
-	h4p_set_rts(hu, true);
 
+out:
 	pm_runtime_put(hu->tty->dev);
 
-	return 0;
+	return err;
 }
 
 /* Initialize protocol */
@@ -559,7 +548,7 @@ static int h4p_flush(struct hci_uart *hu)
 {
 	struct h4p_struct *h4p = hu->priv;
 
-	BT_DBG("hu %p", hu);
+	BT_DBG("flush: hu %p", hu);
 
 	skb_queue_purge(&h4p->txq);
 
@@ -573,7 +562,7 @@ static int h4p_close(struct hci_uart *hu)
 
 	hu->priv = NULL;
 
-	BT_DBG("hu %p", hu);
+	BT_DBG("close: hu %p", hu);
 
 	skb_queue_purge(&h4p->txq);
 
@@ -599,7 +588,7 @@ static int h4p_enqueue(struct hci_uart *hu, struct sk_buff *skb)
 	struct h4p_struct *h4p = hu->priv;
 	u8 type = bt_cb(skb)->pkt_type;
 
-	BT_DBG("hu %p skb %p", hu, skb);
+	BT_DBG("enqueue: hu %p skb %p", hu, skb);
 
 	if(!h4p->negotiated && type != HCI_H4P_NEG_PKT) {
 		dev_warn(hu->tty->dev, "skip sending message (type=%d) until negotiated!\n", type);
@@ -691,6 +680,8 @@ static const struct h4_recv_pkt h4p_recv_pkts[] = {
 static int h4p_recv(struct hci_uart *hu, const void *data, int count)
 {
 	struct h4p_struct *h4p = hu->priv;
+
+	print_hex_dump_bytes("recv data: ", DUMP_PREFIX_NONE, data, count);
 
 	if (!test_bit(HCI_UART_REGISTERED, &hu->flags))
 		return -EUNATCH;
