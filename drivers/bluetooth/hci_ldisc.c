@@ -23,6 +23,8 @@
  *
  */
 
+#define DEBUG
+
 #include <linux/module.h>
 
 #include <linux/kernel.h>
@@ -324,7 +326,7 @@ void hci_uart_init_tty(struct hci_uart *hu)
 	struct tty_struct *tty = hu->tty;
 	struct ktermios ktermios;
 
-	/* Bring the UART into a known 8 bits no parity hw fc state */
+	/* Bring the UART into a known 8 bits no parity hw flow ctrl state */
 	ktermios = tty->termios;
 	ktermios.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP |
 			      INLCR | IGNCR | ICRNL | IXON);
