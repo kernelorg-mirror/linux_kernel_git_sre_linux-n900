@@ -682,8 +682,16 @@ static void serial_omap_set_mctrl(struct uart_port *port, unsigned int mctrl)
 	struct uart_omap_port *up = to_uart_omap_port(port);
 	unsigned char mcr = 0, old_mcr, lcr;
 
-	if(up->port.line != 2)
+	if(up->port.line != 2) {
 		dev_dbg(up->port.dev, "serial_omap_set_mctrl+%d: %x\n", up->port.line, mctrl);
+		dev_dbg(up->port.dev, "aRTS: %c\n", port->status & UPSTAT_AUTORTS ? 'y' : 'n');
+		dev_dbg(up->port.dev, "RTS:  %c\n", mctrl & TIOCM_RTS ? 'y' : 'n');
+		dev_dbg(up->port.dev, "DTR:  %c\n", mctrl & TIOCM_DTR ? 'y' : 'n');
+		dev_dbg(up->port.dev, "OUT1: %c\n", mctrl & TIOCM_OUT1 ? 'y' : 'n');
+		dev_dbg(up->port.dev, "OUT2: %c\n", mctrl & TIOCM_OUT2 ? 'y' : 'n');
+		dev_dbg(up->port.dev, "LOOP: %c\n", mctrl & TIOCM_LOOP ? 'y' : 'n');
+	}
+
 	if (mctrl & TIOCM_RTS)
 		mcr |= UART_MCR_RTS;
 	if (mctrl & TIOCM_DTR)
@@ -1062,7 +1070,7 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
 	serial_out(up, UART_MCR, up->mcr | UART_MCR_TCRTLR);
 
-	#if 1
+	#if 0
 	serial_out(up, UART_TI752_TLR, 0xed);
 	serial_out(up, UART_TI752_TCR, 0xef);
 	#else
