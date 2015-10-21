@@ -90,14 +90,17 @@ static int h4p_wait_for_cts(struct hci_uart *hu, bool state, int timeout_ms)
 	}
 }
 
+/* set request to send (rts) */
 static int h4p_set_rts(struct hci_uart *hu, bool state)
 {
 	dev_dbg(hu->tty->dev, "setting rts: %u\n", state);
 
+	/* TODO: add (TIOCM_OUT2 | TIOCM_DTR) ??? (does not seem to make a difference) */
+
 	if(state)
-		return hu->tty->ops->tiocmset(hu->tty, TIOCM_RTS, 0 | TIOCM_OUT2 | TIOCM_DTR);
+		return hu->tty->ops->tiocmset(hu->tty, TIOCM_RTS, 0);
 	else
-		return hu->tty->ops->tiocmset(hu->tty, 0, TIOCM_RTS | TIOCM_OUT2 | TIOCM_DTR);
+		return hu->tty->ops->tiocmset(hu->tty, 0, TIOCM_RTS);
 }
 
 static void h4p_set_speed(struct hci_uart *hu, unsigned long speed)
