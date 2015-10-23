@@ -689,7 +689,7 @@ static void serial_omap_set_mctrl(struct uart_port *port, unsigned int mctrl)
 		mctrl & TIOCM_DTR ? 'y' : 'n',
 		mctrl & TIOCM_OUT1 ? 'y' : 'n',
 		mctrl & TIOCM_OUT2 ? 'y' : 'n',
-		ctrl & TIOCM_LOOP ? 'y' : 'n');
+		mctrl & TIOCM_LOOP ? 'y' : 'n');
 	}
 
 	if (mctrl & TIOCM_RTS)
