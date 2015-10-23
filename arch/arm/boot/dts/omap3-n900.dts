@@ -908,6 +908,7 @@
 };
 
 &uart2 {
+	compatible = "ti,omap3-uart-bcm2048"; /* hack until wrong setting is found */
 	interrupts-extended = <&intc 73 &omap3_pmx_core OMAP3_UART2_RX>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart2_pins>;
