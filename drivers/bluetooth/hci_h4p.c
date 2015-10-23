@@ -303,11 +303,13 @@ static int h4p_send_negotiation(struct hci_uart *hu)
 	h4p->init_error = 0;
 	init_completion(&h4p->init_completion);
 
-	h4p_set_rts(hu, false);
+	dev_dbg(hu->tty->dev, "gpio state: reset=%x wakehost=%x wakebt=%x\n", gpiod_get_value(h4p->btdata->reset), gpiod_get_value(h4p->btdata->wakeup_host), gpiod_get_value(h4p->btdata->wakeup_bt));
+
+	//h4p_set_rts(hu, false);
 	skb_queue_tail(&h4p->txq, skb);
 	hci_uart_tx_wakeup(hu);
-	msleep(10);
-	h4p_set_rts(hu, true);
+	//msleep(10);
+	//h4p_set_rts(hu, true);
 
 	if (!wait_for_completion_interruptible_timeout(&h4p->init_completion,
 		msecs_to_jiffies(10000))) {
@@ -449,7 +451,7 @@ static int h4p_setup(struct hci_uart *hu)
 		goto out;
 	}
 
-#if 1
+#if 0
 	/* ~. verify connection using alive packet */
 	err = h4p_send_alive_packet(hu);
 	if (err < 0) {
