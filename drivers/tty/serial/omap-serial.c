@@ -284,7 +284,7 @@ static void serial_omap_enable_ms(struct uart_port *port)
 	struct uart_omap_port *up = to_uart_omap_port(port);
 
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_enable_ms+%d\n", up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_enable_ms\n");
 
 	pm_runtime_get_sync(up->dev);
 	up->ier |= UART_IER_MSI;
@@ -297,6 +297,9 @@ static void serial_omap_stop_tx(struct uart_port *port)
 {
 	struct uart_omap_port *up = to_uart_omap_port(port);
 	int res;
+
+	if(up->port.line != 2)
+		dev_dbg(up->port.dev, "serial_omap_stop_tx\n");
 
 	pm_runtime_get_sync(up->dev);
 
@@ -388,9 +391,9 @@ static void transmit_chars(struct uart_omap_port *up, unsigned int lsr)
 	}
 	count = up->port.fifosize / 4;
 	do {
-#if 0
+#if 1
 		if(up->port.line != 2)
-			dev_dbg(up->port.dev, "tx+%d: %02x\n", up->port.line, xmit->buf[xmit->tail]);
+			dev_dbg(up->port.dev, "tx: %02x\n", xmit->buf[xmit->tail]);
 #endif
 		serial_out(up, UART_TX, xmit->buf[xmit->tail]);
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
@@ -419,10 +422,8 @@ static void serial_omap_start_tx(struct uart_port *port)
 	struct uart_omap_port *up = to_uart_omap_port(port);
 	int res;
 
-#if 0
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_start_tx+%d\n", up->port.line);
-#endif
+		dev_dbg(up->port.dev, "serial_omap_start_tx\n");
 
 	pm_runtime_get_sync(up->dev);
 
@@ -643,7 +644,7 @@ static unsigned int serial_omap_tx_empty(struct uart_port *port)
 
 	pm_runtime_get_sync(up->dev);
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_tx_empty+%d\n", up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_tx_empty\n");
 	spin_lock_irqsave(&up->port.lock, flags);
 	ret = serial_in(up, UART_LSR) & UART_LSR_TEMT ? TIOCSER_TEMT : 0;
 	spin_unlock_irqrestore(&up->port.lock, flags);
@@ -664,7 +665,7 @@ static unsigned int serial_omap_get_mctrl(struct uart_port *port)
 	pm_runtime_put_autosuspend(up->dev);
 
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_get_mctrl+%d\n", up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_get_mctrl\n");
 
 	if (status & UART_MSR_DCD)
 		ret |= TIOCM_CAR;
@@ -730,7 +731,7 @@ static void serial_omap_break_ctl(struct uart_port *port, int break_state)
 	unsigned long flags = 0;
 
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_break_ctl+%d\n", up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_break_ctl\n");
 	pm_runtime_get_sync(up->dev);
 	spin_lock_irqsave(&up->port.lock, flags);
 	if (break_state == -1)
@@ -767,7 +768,7 @@ static int serial_omap_startup(struct uart_port *port)
 	}
 
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_startup+%d\n", up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_startup\n");
 
 	pm_runtime_get_sync(up->dev);
 	/*
@@ -825,7 +826,7 @@ static void serial_omap_shutdown(struct uart_port *port)
 	unsigned long flags = 0;
 
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_shutdown+%d\n", up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_shutdown\n");
 
 	pm_runtime_get_sync(up->dev);
 	/*
@@ -911,7 +912,8 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	up->latency = up->calc_latency;
 	schedule_work(&up->qos_work);
 
-	dev_info(up->port.dev, "setting baud divisor: %d\n", quot);
+	if(up->port.line != 2)
+		dev_info(up->port.dev, "setting baud divisor: %d\n", quot);
 
 	up->dll = quot & 0xff;
 	up->dlh = quot >> 8;
@@ -1084,17 +1086,20 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 		up->port.status |= UPSTAT_AUTOCTS | UPSTAT_AUTORTS;
 		up->efr |= UART_EFR_CTS;
 		if(up->port.line != 2)
-			dev_dbg(up->port.dev, "enable auto cts+%d\n", up->port.line);
+			dev_dbg(up->port.dev, "enable auto cts\n");
 	} else {
 		/* Disable AUTORTS and AUTOCTS */
 		up->efr &= ~(UART_EFR_CTS | UART_EFR_RTS);
 		if(up->port.line != 2)
-			dev_dbg(up->port.dev, "disable auto cts+%d\n", up->port.line);
+			dev_dbg(up->port.dev, "disable auto cts\n");
 	}
 
 	if (up->port.flags & UPF_SOFT_FLOW) {
 		/* clear SW control mode bits */
 		up->efr &= OMAP_UART_SW_CLR;
+
+		if(up->port.line != 2)
+			dev_dbg(up->port.dev, "soft flow enabled: c_iflag=0x%02x\n", termios->c_iflag);
 
 		/*
 		 * IXON Flag:
@@ -1136,7 +1141,7 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	pm_runtime_mark_last_busy(up->dev);
 	pm_runtime_put_autosuspend(up->dev);
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_set_termios+%d\n", up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_set_termios\n");
 }
 
 static void
@@ -1147,7 +1152,7 @@ serial_omap_pm(struct uart_port *port, unsigned int state,
 	unsigned char efr;
 
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_pm+%d\n", up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_pm\n");
 
 	pm_runtime_get_sync(up->dev);
 	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
@@ -1182,8 +1187,7 @@ static void serial_omap_config_port(struct uart_port *port, int flags)
 	struct uart_omap_port *up = to_uart_omap_port(port);
 
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_config_port+%d\n",
-							up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_config_port\n");
 	up->port.type = PORT_OMAP;
 	up->port.flags |= UPF_SOFT_FLOW | UPF_HARD_FLOW;
 }
@@ -1203,7 +1207,7 @@ serial_omap_type(struct uart_port *port)
 	struct uart_omap_port *up = to_uart_omap_port(port);
 
 	if(up->port.line != 2)
-		dev_dbg(up->port.dev, "serial_omap_type+%d\n", up->port.line);
+		dev_dbg(up->port.dev, "serial_omap_type\n");
 	return up->name;
 }
 

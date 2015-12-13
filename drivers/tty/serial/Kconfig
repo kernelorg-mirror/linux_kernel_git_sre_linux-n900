@@ -1103,6 +1103,20 @@ config SERIAL_OF_PLATFORM
 	  Currently, only 8250 compatible ports are supported, but
 	  others can easily be added.
 
+config SERIAL_OMAP_BCM2048
+	tristate "OMAP serial port support for bcm2048"
+	depends on ARCH_OMAP2PLUS
+	select SERIAL_CORE
+	help
+	  If you have a machine based on an Texas Instruments OMAP CPU you
+	  can enable its onboard serial ports by enabling this option.
+
+	  By enabling this option you take advantage of dma feature available
+	  with the omap-serial driver. DMA support can be enabled from platform
+	  data.
+
+	  This driver is used, if a bcm2048 is connected to the port.
+
 config SERIAL_OMAP
 	tristate "OMAP serial port support"
 	depends on ARCH_OMAP2PLUS
