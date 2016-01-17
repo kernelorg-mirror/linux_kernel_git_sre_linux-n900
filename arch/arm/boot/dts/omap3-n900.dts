@@ -914,7 +914,7 @@
 	pinctrl-0 = <&uart2_pins>;
 
 	bcm2048: bluetooth {
-		compatible = "brcm,bcm2048";
+		compatible = "nokia,brcm,bcm2048", "nokia,h4p-bluetooth";
 		reset-gpios = <&gpio3 27 GPIO_ACTIVE_HIGH>; /* 91 */
 		host-wakeup-gpios = <&gpio4 5 GPIO_ACTIVE_HIGH>; /* 101 */
 		bluetooth-wakeup-gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>; /* 37 */
