@@ -31,6 +31,13 @@
 		startup-delay-us = <150>;
 		enable-active-high;
 	};
+
+	/* controlled (enabled/disabled) directly by wl1271 */
+	vctcxo: vctcxo {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <38400000>;
+	};
 };
 
 &omap3_pmx_core {
@@ -189,5 +196,16 @@
 			label = "omap2-onenand";
 			reg = <0x00000000 0x20000000>;
 		};
+	};
+};
+
+&uart2 {
+	wl1271_bt: bluetooth {
+		compatible = "nokia,ti,wl1271-bluetooth", "nokia,h4p-bluetooth";
+		reset-gpios = <&gpio1 26 GPIO_ACTIVE_HIGH>; /* 26 */
+		host-wakeup-gpios = <&gpio4 5 GPIO_ACTIVE_HIGH>; /* 101 */
+		bluetooth-wakeup-gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>; /* 37 */
+		clocks = <&vctcxo>;
+		clock-names = "sysclk";
 	};
 };
