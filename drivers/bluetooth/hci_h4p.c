@@ -510,7 +510,7 @@ static int h4p_open(struct hci_uart *hu)
 
 	btdev = device_find_child(serialdev, NULL, btdev_match);
 	if(!btdev) {
-		dev_err(serialdev, "bcm2048 not found!\n");
+		dev_err(serialdev, "h4p device not found!\n");
 		return -ENODEV;
 	}
 

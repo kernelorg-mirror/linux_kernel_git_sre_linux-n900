@@ -1,5 +1,5 @@
 /*
- *  Broadcom 2048 driver
+ *  Nokia H4P driver
  *
  *  Copyright (C) 2015  Sebastian Reichel <sre@kernel.org>
  *
@@ -27,9 +27,9 @@
 #include <net/bluetooth/bluetooth.h>
 #include "hci_h4p.h"
 
-static int bcm2048_probe(struct platform_device *pdev)
+static int nokia_h4p_probe(struct platform_device *pdev)
 {
-	struct h4p_dev_struct *bcm2048;
+	struct h4p_dev_struct *h4p;
 	struct device *bcmdev = &pdev->dev;
 	struct clk *sysclk;
 	int err = 0;
@@ -39,38 +39,38 @@ static int bcm2048_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	bcm2048 = devm_kmalloc(bcmdev, sizeof(*bcm2048), GFP_KERNEL);
-	if(!bcm2048)
+	h4p = devm_kmalloc(bcmdev, sizeof(*h4p), GFP_KERNEL);
+	if(!h4p)
 		return -ENOMEM;
 
-	bcm2048->dev = bcmdev;
-	dev_set_drvdata(bcmdev, bcm2048);
+	h4p->dev = bcmdev;
+	dev_set_drvdata(bcmdev, h4p);
 
-	bcm2048->port = dev_get_drvdata(bcmdev->parent);
-	if(!bcm2048->port) {
+	h4p->port = dev_get_drvdata(bcmdev->parent);
+	if(!h4p->port) {
 		dev_err(bcmdev, "port data missing in parent device!\n");
 		return -ENODEV;
 	}
 
-	bcm2048->reset = devm_gpiod_get(bcmdev, "reset", GPIOD_OUT_LOW);
-	if (IS_ERR(bcm2048->reset)) {
-		err = PTR_ERR(bcm2048->reset);
+	h4p->reset = devm_gpiod_get(bcmdev, "reset", GPIOD_OUT_LOW);
+	if (IS_ERR(h4p->reset)) {
+		err = PTR_ERR(h4p->reset);
 		dev_err(bcmdev, "could not get reset gpio: %d\n", err);
 		return err;
 	}
 
-	bcm2048->wakeup_host = devm_gpiod_get(bcmdev, "host-wakeup", GPIOD_IN);
-	if (IS_ERR(bcm2048->wakeup_host)) {
-		err = PTR_ERR(bcm2048->wakeup_host);
+	h4p->wakeup_host = devm_gpiod_get(bcmdev, "host-wakeup", GPIOD_IN);
+	if (IS_ERR(h4p->wakeup_host)) {
+		err = PTR_ERR(h4p->wakeup_host);
 		dev_err(bcmdev, "could not get host wakeup gpio: %d\n", err);
 		return err;
 	}
 
 
-	bcm2048->wakeup_bt = devm_gpiod_get(bcmdev, "bluetooth-wakeup",
+	h4p->wakeup_bt = devm_gpiod_get(bcmdev, "bluetooth-wakeup",
 					    GPIOD_OUT_LOW);
-	if (IS_ERR(bcm2048->wakeup_bt)) {
-		err = PTR_ERR(bcm2048->wakeup_bt);
+	if (IS_ERR(h4p->wakeup_bt)) {
+		err = PTR_ERR(h4p->wakeup_bt);
 		dev_err(bcmdev, "could not get BT wakeup gpio: %d\n", err);
 		return err;
 	}
@@ -83,34 +83,34 @@ static int bcm2048_probe(struct platform_device *pdev)
 	}
 
 	clk_prepare_enable(sysclk);
-	bcm2048->sysclk_speed = clk_get_rate(sysclk);
+	h4p->sysclk_speed = clk_get_rate(sysclk);
 	clk_disable_unprepare(sysclk);
 
 	dev_dbg(bcmdev, "parent uart: %s\n", dev_name(bcmdev->parent));
-	dev_dbg(bcmdev, "sysclk speed: %ld kHz\n", bcm2048->sysclk_speed / 1000);
+	dev_dbg(bcmdev, "sysclk speed: %ld kHz\n", h4p->sysclk_speed / 1000);
 
 	/* TODO: open tty and setup line disector */
 
 	return err;
 }
 
-static const struct of_device_id bcm2048_of_match[] = {
-	{ .compatible = "brcm,bcm2048", },
+static const struct of_device_id nokia_h4p_of_match[] = {
+	{ .compatible = "nokia,h4p-bluetooth", },
 	{},
 };
-MODULE_DEVICE_TABLE(of, bcm2048_of_match);
+MODULE_DEVICE_TABLE(of, nokia_h4p_of_match);
 
-static struct platform_driver platform_bcm2048_driver = {
+static struct platform_driver platform_nokia_h4p_driver = {
 	.driver = {
-		.name = "bcm2048",
-		.of_match_table = bcm2048_of_match,
+		.name = "nokia-h4p-bluetooth",
+		.of_match_table = nokia_h4p_of_match,
 	},
-	.probe = bcm2048_probe,
+	.probe = nokia_h4p_probe,
 };
 
-module_platform_driver(platform_bcm2048_driver);
+module_platform_driver(platform_nokia_h4p_driver);
 
-MODULE_ALIAS("platform:bcm2048");
+MODULE_ALIAS("platform:nokia-h4p");
 MODULE_AUTHOR("Sebastian Reichel <sre@kernel.org>");
-MODULE_DESCRIPTION("Serial Driver for BCM2048");
+MODULE_DESCRIPTION("Serial Driver for Nokia H4+ bluetooth devices");
 MODULE_LICENSE("GPL v2");
