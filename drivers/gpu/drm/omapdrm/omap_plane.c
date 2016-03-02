@@ -73,6 +73,28 @@ static void omap_plane_cleanup_fb(struct drm_plane *plane,
 		omap_framebuffer_unpin(old_state->fb);
 }
 
+void omap_plane_update_fifo(struct drm_plane *plane)
+{
+	struct omap_plane *omap_plane = to_omap_plane(plane);
+	struct drm_plane_state *state = plane->state;
+	struct drm_device *dev = plane->dev;
+	bool use_fifo_merge = false;
+	u32 fifo_low, fifo_high;
+	bool use_manual_update;
+
+	if (!dispc_ovl_enabled(omap_plane->id))
+		return;
+
+	use_manual_update = omap_crtc_is_manual_updated(state->crtc);
+
+	dispc_ovl_compute_fifo_thresholds(omap_plane->id, &fifo_low, &fifo_high,
+			use_fifo_merge, use_manual_update);
+
+	dev_dbg(dev->dev, "update fifo: %d %d", fifo_low, fifo_high);
+
+	dispc_ovl_set_fifo_threshold(omap_plane->id, fifo_low, fifo_high);
+}
+
 static void omap_plane_atomic_update(struct drm_plane *plane,
 				     struct drm_plane_state *old_state)
 {
@@ -137,6 +159,7 @@ static void omap_plane_atomic_update(struct drm_plane *plane,
 	}
 
 	dispc_ovl_enable(omap_plane->id, true);
+	omap_plane_update_fifo(plane);
 }
 
 static void omap_plane_atomic_disable(struct drm_plane *plane,
