@@ -1167,6 +1167,8 @@ int omap3isp_ccp2_init(struct isp_device *isp)
 	if (isp->revision == ISP_REVISION_2_0) {
 		ccp2->vdds_csib = devm_regulator_get(isp->dev, "vdds_csib");
 		if (IS_ERR(ccp2->vdds_csib)) {
+			if (PTR_ERR(ccp2->vdds_csib) == -EPROBE_DEFER)
+				return -EPROBE_DEFER;
 			dev_dbg(isp->dev,
 				"Could not get regulator vdds_csib\n");
 			ccp2->vdds_csib = NULL;
