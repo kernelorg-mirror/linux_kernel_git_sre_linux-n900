@@ -58,6 +58,13 @@
 			pinctrl-0 = <&debug_leds>;
 		};
 	};
+
+	/* controlled (enabled/disabled) directly by wl1271 */
+	vctcxo: vctcxo {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <38400000>;
+	};
 };
 
 &omap3_pmx_core {
@@ -434,4 +441,18 @@
 
 &ssi_port2 {
 	status = "disabled";
+};
+
+&uart2 {
+	bluetooth {
+		compatible = "nokia,ti,wl1271-bluetooth";
+
+		reset-gpios = <&gpio1 26 GPIO_ACTIVE_HIGH>; /* 26 */
+		host-wakeup-gpios = <&gpio4 5 GPIO_ACTIVE_HIGH>; /* 101 */
+		bluetooth-wakeup-gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>; /* 37 */
+
+		clocks = <&vctcxo>;
+		clock-names = "sysclk";
+	};
+
 };
