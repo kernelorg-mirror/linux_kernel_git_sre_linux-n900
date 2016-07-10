@@ -253,11 +253,21 @@ struct sk_buff *h4_recv_buf(struct hci_dev *hdev, struct sk_buff *skb,
 			}
 
 			if (!dlen) {
+				if ((&pkts[i])->wordaligned && !(skb->len % 2)) {
+					buffer++;
+					count--;
+				}
+
 				/* No more data, complete frame */
 				(&pkts[i])->recv(hdev, skb);
 				skb = NULL;
 			}
 		} else {
+			if ((&pkts[i])->wordaligned && !(skb->len % 2)) {
+				buffer++;
+				count--;
+			}
+
 			/* Complete frame */
 			(&pkts[i])->recv(hdev, skb);
 			skb = NULL;
