@@ -96,6 +96,7 @@ static int bcm2048_probe(struct platform_device *pdev)
 
 static const struct of_device_id bcm2048_of_match[] = {
 	{ .compatible = "brcm,bcm2048", },
+	{ .compatible = "nokia,ti,wl1271-bluetooth", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, bcm2048_of_match);
