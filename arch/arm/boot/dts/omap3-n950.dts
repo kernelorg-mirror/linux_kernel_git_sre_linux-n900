@@ -185,3 +185,13 @@
 	st,max-limit-y = <32>;
 	st,max-limit-z = <32>;
 };
+
+&i2c3 {
+	ak8974: ak8974@0f {
+		compatible = "asahi-kasei,ak8974";
+		reg = <0x0f>;
+		avdd-supply = <&vaux1>;
+		dvdd-supply = <&vio>;
+		/* TODO: X = normal, Y = inverted, Z = inverted */
+	};
+};
