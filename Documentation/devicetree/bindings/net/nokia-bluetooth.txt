@@ -1,0 +1,43 @@
+Nokia bluetooth UART devices
+------
+
+Some vendors have custom versions of their chips, that can be found in Nokia
+devices. These chips are controlled differently, than the non-Nokia version,
+so a different binding is required. All chips listed here implement the Nokia
+H4+ protocol.
+
+Required properties:
+
+  - compatible: should be one of the following:
+	* "nokia,brcm,bcm2048"
+	* "nokia,ti,wl1271-bluetooth"
+  - reset-gpios:		Should specify the gpio for bluetooth reset
+  - host-wakeup-gpios:		Should specify the gpio for host wakeup
+  - bluetooth-wakeup-gpios:	Should specify the gpio for bluetooth wakeup
+  - clock-names:		Should be "sysclk"
+  - clocks:			Should contain a clock phandle for system clock
+
+Example:
+
+/ {
+	/* controlled (enabled/disabled) directly by wl1271 */
+	vctcxo: vctcxo {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <38400000>;
+	};
+};
+
+&uart2 {
+	bluetooth {
+		compatible = "nokia,ti,wl1271-bluetooth";
+
+		reset-gpios = <&gpio1 26 GPIO_ACTIVE_HIGH>; /* 26 */
+		host-wakeup-gpios = <&gpio4 5 GPIO_ACTIVE_HIGH>; /* 101 */
+		bluetooth-wakeup-gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>; /* 37 */
+
+		clocks = <&vctcxo>;
+		clock-names = "sysclk";
+	};
+
+};
