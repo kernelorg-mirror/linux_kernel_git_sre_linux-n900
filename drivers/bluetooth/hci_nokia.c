@@ -47,6 +47,7 @@
 #include <net/bluetooth/hci_core.h>
 
 #include "hci_uart.h"
+#include "btbcm.h"
 
 #define NOKIA_ID_BCM2048	0x04
 #define NOKIA_ID_TI1271		0x31
@@ -469,6 +470,7 @@ done:
 
 static int nokia_setup(struct hci_uart *hu)
 {
+	struct nokia_bt_dev *btdev = hu->priv;
 	int err;
 
 	pm_runtime_get_sync(hu->tty->dev);
@@ -506,6 +508,11 @@ static int nokia_setup(struct hci_uart *hu)
 	hci_uart_set_flow_control(hu, true);
 	hci_uart_set_baudrate(hu, BC4_MAX_BAUD_RATE);
 	hci_uart_set_flow_control(hu, false);
+
+	if (btdev->man_id == NOKIA_ID_BCM2048) {
+		hu->hdev->set_bdaddr = btbcm_set_bdaddr;
+		set_bit(HCI_QUIRK_INVALID_BDADDR, &hu->hdev->quirks);
+	}
 
 	dev_dbg(hu->tty->dev, "Nokia H4+ protocol setup done!\n");
 
