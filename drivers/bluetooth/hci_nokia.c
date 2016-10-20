@@ -194,18 +194,6 @@ struct nokia_bt_dev {
 	uint8_t ver_id;
 };
 
-static char *nokia_get_fw_name(struct nokia_bt_dev *btdev)
-{
-	switch (btdev->man_id) {
-	case NOKIA_ID_BCM2048:
-		return FIRMWARE_BCM2048;
-	case NOKIA_ID_TI1271:
-		return FIRMWARE_TI1271;
-	default:
-		return NULL;
-	}
-}
-
 static int hci_uart_wait_for_cts(struct hci_uart *hu, bool state,
 				 int timeout_ms)
 {
@@ -416,6 +404,7 @@ static int nokia_send_negotiation(struct hci_uart *hu)
 static int nokia_setup_fw(struct hci_uart *hu)
 {
 	struct nokia_bt_dev *btdev = hu->priv;
+	const char *fwname;
 	const struct firmware *fw;
 	const u8 *fw_ptr;
 	size_t fw_size;
@@ -423,7 +412,14 @@ static int nokia_setup_fw(struct hci_uart *hu)
 
 	BT_DBG("hu %p", hu);
 
-	err = request_firmware(&fw, nokia_get_fw_name(btdev), hu->tty->dev);
+	if (btdev->man_id == NOKIA_ID_BCM2048)
+		fwname = FIRMWARE_BCM2048;
+	else if (btdev->man_id == NOKIA_ID_TI1271)
+		fwname = FIRMWARE_TI1271;
+	else
+		return -EINVAL;
+
+	err = request_firmware(&fw, fwname, hu->tty->dev);
 	if (err < 0) {
 		BT_ERR("%s: Failed to load Nokia firmware file (%d)",
 		       hu->hdev->name, err);
