@@ -193,6 +193,8 @@ struct nokia_bt_dev {
 
 	uint8_t man_id;
 	uint8_t ver_id;
+
+	bool initialized;
 };
 
 static int hci_uart_wait_for_cts(struct hci_uart *hu, bool state,
@@ -250,6 +252,8 @@ static int nokia_reset(struct hci_uart *hu)
 {
 	struct nokia_bt_dev *btdev = hu->priv;
 	int err;
+
+	btdev->initialized = false;
 
 	/* reset routine */
 	gpiod_set_value_cansleep(btdev->btdata->reset, 0);
@@ -516,17 +520,14 @@ static int nokia_setup(struct hci_uart *hu)
 
 	dev_dbg(hu->tty->dev, "Nokia H4+ protocol setup done!\n");
 
-	/*
-	 * TODO:
-	 * disable wakeup_bt at this point and automatically enable it when
-	 * data is about to be written until all data has been written (+ some
-	 * delay).
-	 *
-	 * Since this is not yet support by the uart/tty kernel framework we
-	 * will always keep enabled the wakeup_bt gpio for now, so that the
-	 * bluetooth chip will never transit into idle modes.
-	 */
+	gpiod_set_value_cansleep(btdev->btdata->wakeup_bt, 0);
+	btdev->initialized = true;
 
+	/* TODO: FIXME: keep uart enabled for now
+	 *
+	 * according to the original driver we can only send
+	 * uart to idle if wakeup_bt is down at least 100ms */
+	return 0;
 out:
 	pm_runtime_put(hu->tty->dev);
 
@@ -753,8 +754,18 @@ static int nokia_recv(struct hci_uart *hu, const void *data, int count)
 static struct sk_buff *nokia_dequeue(struct hci_uart *hu)
 {
 	struct nokia_bt_dev *btdev = hu->priv;
+	struct sk_buff *result = skb_dequeue(&btdev->txq);
 
-	return skb_dequeue(&btdev->txq);
+	if (btdev->initialized) {
+		if (result) {
+			gpiod_set_value_cansleep(btdev->btdata->wakeup_bt, 1);
+		} else {
+			tty_wait_until_sent(hu->tty, 1000);
+			gpiod_set_value_cansleep(btdev->btdata->wakeup_bt, 0);
+		}
+	}
+
+	return result;
 }
 
 static const struct hci_uart_proto nokia_proto = {
