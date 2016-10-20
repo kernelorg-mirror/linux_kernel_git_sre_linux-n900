@@ -48,11 +48,9 @@
 
 #include "hci_uart.h"
 
-#define NOKIA_ID_CSR		0x02
 #define NOKIA_ID_BCM2048	0x04
 #define NOKIA_ID_TI1271		0x31
 
-#define FIRMWARE_CSR		"nokia/bc4fw.bin"
 #define FIRMWARE_BCM2048	"nokia/bcmfw.bin"
 #define FIRMWARE_TI1271		"nokia/ti1273.bin"
 
@@ -199,8 +197,6 @@ struct nokia_bt_dev {
 static char *nokia_get_fw_name(struct nokia_bt_dev *btdev)
 {
 	switch (btdev->man_id) {
-	case NOKIA_ID_CSR:
-		return FIRMWARE_CSR;
 	case NOKIA_ID_BCM2048:
 		return FIRMWARE_BCM2048;
 	case NOKIA_ID_TI1271:
