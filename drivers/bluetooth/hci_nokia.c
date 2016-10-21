@@ -404,12 +404,14 @@ static int nokia_setup_fw(struct hci_uart *hu)
 
 	BT_DBG("hu %p", hu);
 
-	if (btdev->man_id == NOKIA_ID_BCM2048)
+	if (btdev->man_id == NOKIA_ID_BCM2048) {
 		fwname = FIRMWARE_BCM2048;
-	else if (btdev->man_id == NOKIA_ID_TI1271)
+	} else if (btdev->man_id == NOKIA_ID_TI1271) {
 		fwname = FIRMWARE_TI1271;
-	else
-		return -EINVAL;
+	} else {
+		dev_err(hu->tty->dev, "Unsupported bluetooth device!\n");
+		return -ENODEV;
+	}
 
 	err = request_firmware(&fw, fwname, hu->tty->dev);
 	if (err < 0) {
