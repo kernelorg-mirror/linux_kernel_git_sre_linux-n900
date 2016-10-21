@@ -208,10 +208,7 @@ static int hci_uart_wait_for_cts(struct hci_uart *hu, bool state,
 
 static int btdev_match(struct device *child, void *data)
 {
-	if (!strcmp(child->driver->name, "nokia-bluetooth"))
-		return 1;
-	else
-		return 0;
+	return !strcmp(child->driver->name, "nokia-bluetooth");
 }
 
 static irqreturn_t wakeup_handler(int irq, void *data)
