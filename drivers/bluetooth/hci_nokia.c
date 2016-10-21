@@ -19,29 +19,19 @@
 #define DEBUG
 
 #include <linux/module.h>
-
 #include <linux/clk.h>
 #include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/types.h>
-#include <linux/fcntl.h>
 #include <linux/interrupt.h>
-#include <linux/ptrace.h>
-#include <linux/poll.h>
 #include <linux/pm_runtime.h>
 #include <linux/firmware.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/tty.h>
 #include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/signal.h>
-#include <linux/ioctl.h>
 #include <linux/skbuff.h>
-#include <linux/delay.h>
 #include <linux/platform_device.h>
-
 #include <linux/gpio/consumer.h>
-
 #include <linux/unaligned/le_struct.h>
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
