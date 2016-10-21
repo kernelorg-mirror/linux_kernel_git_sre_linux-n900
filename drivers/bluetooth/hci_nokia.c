@@ -378,17 +378,15 @@ static int nokia_send_negotiation(struct hci_uart *hu)
 	if (btdev->init_error < 0)
 		return btdev->init_error;
 
-	/* Change to operational settings */
-	hci_uart_set_flow_control(hu, true); // disable flow control
-
-	/* setup negotiated max. baudrate */
+       /* Change to previously negotiated speed. Flow Control
+        * is disabled until bluetooth adapter is ready to avoid
+        * broken bytes being ready by the bluetooth adapter */
+	hci_uart_set_flow_control(hu, true);
 	hci_uart_set_baudrate(hu, MAX_BAUD_RATE);
-
 	err = hci_uart_wait_for_cts(hu, true, 100);
 	if (err < 0)
 		return err;
-
-	hci_uart_set_flow_control(hu, false); // re-enable flow control
+	hci_uart_set_flow_control(hu, false);
 
 	dev_dbg(hu->tty->dev, "Negotiation successful...\n");
 
