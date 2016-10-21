@@ -147,10 +147,10 @@ struct hci_nokia_neg_evt {
 	__u8	ver_id;
 } __packed;
 
-#define BT_BAUDRATE_DIVIDER     384000000
-#define BC4_MAX_BAUD_RATE       3692300
-#define MAX_BAUD_RATE           921600
-#define INIT_SPEED              120000
+#define BT_BAUDRATE_DIVIDER	384000000
+#define MAX_BAUD_RATE		3692300
+#define SETUP_BAUD_RATE		921600
+#define INIT_BAUD_RATE		120000
 
 struct hci_nokia_radio_hdr {
 	__u8	evt;
@@ -264,7 +264,7 @@ static int nokia_reset(struct hci_uart *hu)
 	/* init uart */
 	hci_uart_init_tty(hu);
 	hci_uart_set_flow_control(hu, true);
-	hci_uart_set_baudrate(hu, INIT_SPEED);
+	hci_uart_set_baudrate(hu, INIT_BAUD_RATE);
 
 	gpiod_set_value_cansleep(btdev->btdata->reset, 1);
 
@@ -342,7 +342,7 @@ static int nokia_send_negotiation(struct hci_uart *hu)
 	struct hci_nokia_neg_hdr *neg_hdr;
 	struct sk_buff *skb;
 	int len, err;
-	u16 baud = DIV_ROUND_CLOSEST(BT_BAUDRATE_DIVIDER, MAX_BAUD_RATE);
+	u16 baud = DIV_ROUND_CLOSEST(BT_BAUDRATE_DIVIDER, SETUP_BAUD_RATE);
 	int sysclk = btdev->btdata->sysclk_speed / 1000;
 
 	dev_dbg(hu->tty->dev, "Sending negotiation...\n");
@@ -382,7 +382,7 @@ static int nokia_send_negotiation(struct hci_uart *hu)
         * is disabled until bluetooth adapter is ready to avoid
         * broken bytes being ready by the bluetooth adapter */
 	hci_uart_set_flow_control(hu, true);
-	hci_uart_set_baudrate(hu, MAX_BAUD_RATE);
+	hci_uart_set_baudrate(hu, SETUP_BAUD_RATE);
 	err = hci_uart_wait_for_cts(hu, true, 100);
 	if (err < 0)
 		return err;
@@ -499,7 +499,7 @@ static int nokia_setup(struct hci_uart *hu)
 	}
 
 	hci_uart_set_flow_control(hu, true);
-	hci_uart_set_baudrate(hu, BC4_MAX_BAUD_RATE);
+	hci_uart_set_baudrate(hu, MAX_BAUD_RATE);
 	hci_uart_set_flow_control(hu, false);
 
 	if (btdev->man_id == NOKIA_ID_BCM2048) {
