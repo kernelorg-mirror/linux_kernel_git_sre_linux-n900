@@ -195,6 +195,7 @@ struct nokia_bt_dev {
 	uint8_t ver_id;
 
 	bool initialized;
+	bool tx_enabled;
 };
 
 static int hci_uart_wait_for_cts(struct hci_uart *hu, bool state,
@@ -238,10 +239,14 @@ static irqreturn_t wakeup_handler(int irq, void *data)
 	if (btdev->wake_state == wake_state)
 		return IRQ_HANDLED;
 
-	if (wake_state)
+	if (wake_state) {
 		pm_runtime_get_sync(serialdev);
-	else if (!wake_state)
+		hci_uart_set_flow_control(btdev->hu, false);
+	} else {
+		tty_wait_until_sent(btdev->hu->tty, 0);
+		hci_uart_set_flow_control(btdev->hu, true);
 		pm_runtime_put(serialdev);
+	}
 
 	btdev->wake_state = wake_state;
 
@@ -521,6 +526,7 @@ static int nokia_setup(struct hci_uart *hu)
 	dev_dbg(hu->tty->dev, "Nokia H4+ protocol setup done!\n");
 
 	gpiod_set_value_cansleep(btdev->btdata->wakeup_bt, 0);
+	btdev->tx_enabled = false;
 	btdev->initialized = true;
 
 	/* TODO: FIXME: keep uart enabled for now
@@ -754,15 +760,23 @@ static int nokia_recv(struct hci_uart *hu, const void *data, int count)
 static struct sk_buff *nokia_dequeue(struct hci_uart *hu)
 {
 	struct nokia_bt_dev *btdev = hu->priv;
+	struct device *serialdev = hu->tty->dev;
 	struct sk_buff *result = skb_dequeue(&btdev->txq);
 
-	if (btdev->initialized) {
+	if (btdev->initialized && btdev->tx_enabled != !!result) {
 		if (result) {
+			dev_dbg(serialdev, "wakeup_bt: enable");
+			hci_uart_set_flow_control(btdev->hu, false);
 			gpiod_set_value_cansleep(btdev->btdata->wakeup_bt, 1);
 		} else {
-			tty_wait_until_sent(hu->tty, 1000);
+			dev_dbg(serialdev, "wakeup_bt: disable");
+			tty_wait_until_sent(hu->tty, 0);
 			gpiod_set_value_cansleep(btdev->btdata->wakeup_bt, 0);
+			if (!btdev->wake_state)
+				hci_uart_set_flow_control(btdev->hu, true);
 		}
+
+		btdev->tx_enabled = !!result;
 	}
 
 	return result;
