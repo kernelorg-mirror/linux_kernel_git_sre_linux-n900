@@ -45,8 +45,6 @@
 #define FIRMWARE_BCM2048	"nokia/bcmfw.bin"
 #define FIRMWARE_TI1271		"nokia/ti1273.bin"
 
-#define NOKIA_BCM_BDADDR	0xfc01
-
 #define HCI_NOKIA_NEG_PKT	0x06
 #define HCI_NOKIA_ALIVE_PKT	0x07
 #define HCI_NOKIA_RADIO_PKT	0x08
