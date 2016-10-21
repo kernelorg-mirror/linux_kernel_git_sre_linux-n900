@@ -186,6 +186,8 @@ struct nokia_bt_dev {
 	bool tx_enabled;
 };
 
+static int nokia_enqueue(struct hci_uart *hu, struct sk_buff *skb);
+
 static int hci_uart_wait_for_cts(struct hci_uart *hu, bool state,
 				 int timeout_ms)
 {
@@ -322,7 +324,8 @@ static int nokia_send_alive_packet(struct hci_uart *hu)
 	pkt = (struct hci_nokia_alive_pkt *)skb_put(skb, sizeof(*pkt));
 	pkt->mid = NOKIA_ALIVE_REQ;
 
-	hu->hdev->send(hu->hdev, skb);
+	nokia_enqueue(hu, skb);
+	hci_uart_tx_wakeup(hu);
 
 	if (!wait_for_completion_interruptible_timeout(&btdev->init_completion,
 		msecs_to_jiffies(1000))) {
@@ -368,7 +371,8 @@ static int nokia_send_negotiation(struct hci_uart *hu)
 	btdev->init_error = 0;
 	init_completion(&btdev->init_completion);
 
-	hu->hdev->send(hu->hdev, skb);
+	nokia_enqueue(hu, skb);
+	hci_uart_tx_wakeup(hu);
 
 	if (!wait_for_completion_interruptible_timeout(&btdev->init_completion,
 		msecs_to_jiffies(10000))) {
