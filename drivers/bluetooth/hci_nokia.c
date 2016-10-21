@@ -193,18 +193,17 @@ static int hci_uart_wait_for_cts(struct hci_uart *hu, bool state,
 	int signal;
 
 	timeout = jiffies + msecs_to_jiffies(timeout_ms);
-	for (;;) {
+	while (!time_after(jiffies, timeout)) {
 		signal = hu->tty->ops->tiocmget(hu->tty) & TIOCM_CTS;
 		if (!!signal == !!state) {
 			dev_dbg(hu->tty->dev, "wait for cts... received!\n");
 			return 0;
 		}
-		if (time_after(jiffies, timeout)) {
-			dev_dbg(hu->tty->dev, "wait for cts... timeout!\n");
-			return -ETIMEDOUT;
-		}
 		usleep_range(1000, 2000);
 	}
+
+	dev_dbg(hu->tty->dev, "wait for cts... timeout!\n");
+	return -ETIMEDOUT;
 }
 
 static int btdev_match(struct device *child, void *data)
