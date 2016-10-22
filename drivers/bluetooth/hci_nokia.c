@@ -65,41 +65,26 @@
 
 #define H4_TYPE_SIZE		1
 
-#define NOKIA_RECV_ACL \
-	H4_RECV_ACL, \
-	.wordaligned = true
-
-#define NOKIA_RECV_SCO \
-	H4_RECV_SCO, \
-	.wordaligned = true
-
-#define NOKIA_RECV_EVENT \
-	H4_RECV_EVENT, \
-	.wordaligned = true
-
 #define NOKIA_RECV_ALIVE \
 	.type = HCI_NOKIA_ALIVE_PKT, \
 	.hlen = HCI_NOKIA_ALIVE_HDR_SIZE, \
 	.loff = 0, \
 	.lsize = 1, \
-	.maxlen = HCI_NOKIA_MAX_ALIVE_SIZE, \
-	.wordaligned = true
+	.maxlen = HCI_NOKIA_MAX_ALIVE_SIZE \
 
 #define NOKIA_RECV_NEG \
 	.type = HCI_NOKIA_NEG_PKT, \
 	.hlen = HCI_NOKIA_NEG_HDR_SIZE, \
 	.loff = 0, \
 	.lsize = 1, \
-	.maxlen = HCI_NOKIA_MAX_NEG_SIZE, \
-	.wordaligned = true
+	.maxlen = HCI_NOKIA_MAX_NEG_SIZE \
 
 #define NOKIA_RECV_RADIO \
 	.type = HCI_NOKIA_RADIO_PKT, \
 	.hlen = HCI_NOKIA_RADIO_HDR_SIZE, \
 	.loff = 1, \
 	.lsize = 1, \
-	.maxlen = HCI_NOKIA_MAX_RADIO_SIZE, \
-	.wordaligned = true
+	.maxlen = HCI_NOKIA_MAX_RADIO_SIZE \
 
 struct hci_nokia_neg_hdr {
 	__u8	dlen;
@@ -541,6 +526,9 @@ static int nokia_open(struct hci_uart *hu)
 
 	btdev->hu = hu;
 
+	/* Nokia H4+ is word aligned */
+	hu->alignment = 2;
+
 	skb_queue_head_init(&btdev->txq);
 
 	uartbtdev = device_find_child(serialdev, NULL, btdev_match);
@@ -717,9 +705,9 @@ static int nokia_recv_radio(struct hci_dev *hdev, struct sk_buff *skb)
 
 /* Recv data */
 static const struct h4_recv_pkt nokia_recv_pkts[] = {
-	{ NOKIA_RECV_ACL,	.recv = hci_recv_frame },
-	{ NOKIA_RECV_SCO,	.recv = hci_recv_frame },
-	{ NOKIA_RECV_EVENT,	.recv = hci_recv_frame },
+	{ H4_RECV_ACL,		.recv = hci_recv_frame },
+	{ H4_RECV_SCO,		.recv = hci_recv_frame },
+	{ H4_RECV_EVENT,	.recv = hci_recv_frame },
 	{ NOKIA_RECV_ALIVE,	.recv = nokia_recv_alive_packet },
 	{ NOKIA_RECV_NEG,	.recv = nokia_recv_negotiation_packet },
 	{ NOKIA_RECV_RADIO,	.recv = nokia_recv_radio },
