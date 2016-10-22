@@ -99,11 +99,6 @@ struct hci_nokia_neg_cmd {
 	__u16	unused2;
 } __packed;
 
-static inline struct hci_nokia_neg_hdr *hci_nokia_neg_hdr(const struct sk_buff *skb)
-{
-	return (struct hci_nokia_neg_hdr *) skb->data;
-}
-
 #define NOKIA_ALIVE_REQ   0x55
 #define NOKIA_ALIVE_RESP  0xcc
 
@@ -115,11 +110,6 @@ struct hci_nokia_alive_pkt {
 	__u8	mid;
 	__u8	unused;
 } __packed;
-
-static inline struct hci_nokia_alive_hdr *hci_nokia_alive_hdr(const struct sk_buff *skb)
-{
-	return (struct hci_nokia_alive_hdr *) skb->data;
-}
 
 struct hci_nokia_neg_evt {
 	__u8	ack;
@@ -141,7 +131,6 @@ struct hci_nokia_radio_hdr {
 	__u8	evt;
 	__u8	dlen;
 } __packed;
-
 
 struct nokia_uart_dev {
 	struct device *dev;
