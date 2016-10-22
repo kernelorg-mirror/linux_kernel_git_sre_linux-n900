@@ -244,20 +244,6 @@ static int nokia_reset(struct hci_uart *hu)
 
 	gpiod_set_value_cansleep(btdev->btdata->reset, 1);
 
-#if 0
-	/* this breaks n900 / bcm2048 for some reason */
-
-	gpiod_set_value_cansleep(btdev->btdata->wakeup_bt, 0);
-
-	msleep(100);
-
-	err = gpiod_get_value_cansleep(btdev->btdata->wakeup_host);
-	if (err == 0) {
-		dev_err(hu->tty->dev, "reset: host wakeup not high!\n");
-		return -EPROTO;
-	}
-#endif
-
 	/* wait for cts */
 	err = hci_uart_wait_for_cts(hu, true, 100);
 	if (err < 0) {
@@ -265,9 +251,6 @@ static int nokia_reset(struct hci_uart *hu)
 		return err;
 	}
 
-#if 0
-	gpiod_set_value_cansleep(btdev->btdata->wakeup_bt, 1);
-#endif
 	hci_uart_set_flow_control(hu, false);
 
 	return 0;
