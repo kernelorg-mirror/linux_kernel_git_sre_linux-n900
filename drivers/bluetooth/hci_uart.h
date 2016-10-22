@@ -91,6 +91,9 @@ struct hci_uart {
 
 	unsigned int init_speed;
 	unsigned int oper_speed;
+
+	u8			alignment;
+	u8			padding;
 };
 
 /* HCI_UART proto flag bits */
@@ -122,7 +125,6 @@ struct h4_recv_pkt {
 	u8  loff;	/* Data length offset in header */
 	u8  lsize;	/* Data length field size */
 	u16 maxlen;	/* Max overall packet length */
-	bool wordaligned;	/* packets are word aligned */
 	int (*recv)(struct hci_dev *hdev, struct sk_buff *skb);
 };
 
