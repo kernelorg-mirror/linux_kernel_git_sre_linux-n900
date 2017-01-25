@@ -356,7 +356,7 @@ void omap_framebuffer_flush(struct drm_framebuffer *fb,
 			int cw = w + (x - crtc->x) - cx;
 			int ch = h + (y - crtc->y) - cy;
 
-			omap_connector_flush(connector, cx, cy, cw, ch);
+			omap_crtc_flush(crtc, cx, cy, cw, ch);
 		}
 	}
 }

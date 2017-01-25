@@ -43,6 +43,7 @@ struct omap_crtc {
 	bool pending;
 	wait_queue_head_t pending_wait;
 	struct drm_pending_vblank_event *event;
+	struct delayed_work update_work;
 
 	void (*framedone_handler)(void *);
 	void *framedone_handler_data;
@@ -138,6 +139,7 @@ static void omap_crtc_dss_disconnect(enum omap_channel channel,
 
 static void omap_crtc_dss_start_update(enum omap_channel channel)
 {
+	dispc_mgr_enable(channel, true);
 }
 
 /* Called only from the encoder enable/disable and suspend/resume handlers. */
@@ -347,6 +349,60 @@ void omap_crtc_vblank_irq(struct drm_crtc *crtc)
 	DBG("%s: apply done", omap_crtc->name);
 }
 
+void omap_crtc_flush(struct drm_crtc *crtc,
+		int x, int y, int w, int h)
+{
+	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+
+	if (!omap_crtc->manually_updated)
+		return;
+
+	if (!delayed_work_pending(&omap_crtc->update_work))
+		schedule_delayed_work(&omap_crtc->update_work, 0);
+}
+
+static void omap_crtc_manual_display_update(struct work_struct *data)
+{
+	struct omap_crtc *omap_crtc = container_of(data, struct omap_crtc,
+					update_work.work);
+	struct drm_crtc *crtc = &omap_crtc->base;
+	struct omap_dss_device *dssdev = omap_crtc_output[omap_crtc->channel];
+	struct omap_dss_driver *dssdrv;
+	int ret;
+
+	if (!dssdev || !dssdev->dst) {
+		dev_err_once(omap_crtc->base.dev->dev, "missing dssdev!\n");
+		return;
+	}
+
+	dssdev = dssdev->dst;
+	dssdrv = dssdev->driver;
+
+	if (!dssdrv)
+		return;
+
+	if (!dssdrv || !dssdrv->update)
+		return;
+
+	/*
+	 * REVISIT: Testing and setting omap_crtc->pending here will cause all
+	 * kind of warnings at least on droid 4. Maybe we should be testing
+	 * something else here instead of omap_crtc->pending?
+	 */
+
+	if (dssdrv->sync)
+		dssdrv->sync(dssdev);
+
+	ret = dssdrv->update(dssdev, 0, 0,
+			     dssdev->panel.vm.vactive, dssdev->panel.vm.hactive);
+	if (ret < 0) {
+		spin_lock_irq(&crtc->dev->event_lock);
+		omap_crtc->pending = false;
+		spin_unlock_irq(&crtc->dev->event_lock);
+		wake_up(&omap_crtc->pending_wait);
+	}
+}
+
 /* -----------------------------------------------------------------------------
  * CRTC Functions
  */
@@ -395,8 +451,14 @@ static void omap_crtc_enable(struct drm_crtc *crtc)
 static void omap_crtc_disable(struct drm_crtc *crtc)
 {
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+	struct drm_device *dev = crtc->dev;
 
 	DBG("%s", omap_crtc->name);
+
+	cancel_delayed_work(&omap_crtc->update_work);
+
+	if (!omap_crtc_wait_pending(crtc))
+		dev_warn(dev->dev, "manual display update did not finish!");
 
 	drm_crtc_vblank_off(crtc);
 }
@@ -469,6 +531,7 @@ static void omap_crtc_atomic_flush(struct drm_crtc *crtc,
 	}
 
 	spin_lock_irq(&crtc->dev->event_lock);
+	dispc_mgr_enable(omap_crtc->channel, true);
 	dispc_mgr_go(omap_crtc->channel);
 
 	WARN_ON(omap_crtc->pending);
@@ -596,6 +659,8 @@ struct drm_crtc *omap_crtc_init(struct drm_device *dev,
 
 	omap_crtc->channel = channel;
 	omap_crtc->name = channel_names[channel];
+
+	INIT_DELAYED_WORK(&omap_crtc->update_work, omap_crtc_manual_display_update);
 
 	ret = drm_crtc_init_with_planes(dev, crtc, plane, NULL,
 					&omap_crtc_funcs, NULL);

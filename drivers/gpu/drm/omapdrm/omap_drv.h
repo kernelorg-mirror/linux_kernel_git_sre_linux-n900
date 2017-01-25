@@ -157,7 +157,7 @@ struct drm_encoder *omap_connector_attached_encoder(
 		struct drm_connector *connector);
 bool omap_connector_get_hdmi_mode(struct drm_connector *connector);
 bool omap_connector_get_manually_updated(struct drm_connector *connector);
-void omap_connector_flush(struct drm_connector *connector,
+void omap_crtc_flush(struct drm_crtc *crtc,
 		int x, int y, int w, int h);
 
 uint32_t omap_framebuffer_get_formats(uint32_t *pixel_formats,

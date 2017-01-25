@@ -212,18 +212,6 @@ static const struct drm_connector_helper_funcs omap_connector_helper_funcs = {
 	.mode_valid = omap_connector_mode_valid,
 };
 
-/* flush an area of the framebuffer (in case of manual update display that
- * is not automatically flushed)
- */
-void omap_connector_flush(struct drm_connector *connector,
-		int x, int y, int w, int h)
-{
-	struct omap_connector *omap_connector = to_omap_connector(connector);
-
-	/* TODO: enable when supported in dss */
-	VERB("%s: %d,%d, %dx%d", omap_connector->dssdev->name, x, y, w, h);
-}
-
 /* initialize connector */
 struct drm_connector *omap_connector_init(struct drm_device *dev,
 		int connector_type, struct omap_dss_device *dssdev,
