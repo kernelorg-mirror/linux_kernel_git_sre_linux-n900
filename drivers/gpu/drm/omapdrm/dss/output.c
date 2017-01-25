@@ -214,6 +214,12 @@ void dss_mgr_set_lcd_config(enum omap_channel channel,
 }
 EXPORT_SYMBOL(dss_mgr_set_lcd_config);
 
+bool dss_lcd_mgr_config_get_stallmode(const struct dss_lcd_mgr_config *config)
+{
+	return config->stallmode;
+}
+EXPORT_SYMBOL(dss_lcd_mgr_config_get_stallmode);
+
 int dss_mgr_enable(enum omap_channel channel)
 {
 	return dss_mgr_ops->enable(channel);

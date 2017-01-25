@@ -35,6 +35,13 @@ struct omap_connector {
 	bool hdmi_mode;
 };
 
+bool omap_connector_get_manually_updated(struct drm_connector *connector)
+{
+	struct omap_connector *omap_connector = to_omap_connector(connector);
+
+	return !!(omap_connector->dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE);
+}
+
 bool omap_connector_get_hdmi_mode(struct drm_connector *connector)
 {
 	struct omap_connector *omap_connector = to_omap_connector(connector);

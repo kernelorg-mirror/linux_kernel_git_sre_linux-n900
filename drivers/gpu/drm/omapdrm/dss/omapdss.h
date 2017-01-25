@@ -918,5 +918,6 @@ int dss_mgr_register_framedone_handler(enum omap_channel channel,
 		void (*handler)(void *), void *data);
 void dss_mgr_unregister_framedone_handler(enum omap_channel channel,
 		void (*handler)(void *), void *data);
+bool dss_lcd_mgr_config_get_stallmode(const struct dss_lcd_mgr_config *config);
 
 #endif /* __OMAP_DRM_DSS_H */

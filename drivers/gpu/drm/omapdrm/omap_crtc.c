@@ -35,6 +35,7 @@ struct omap_crtc {
 	enum omap_channel channel;
 
 	struct videomode vm;
+	bool manually_updated;
 
 	bool ignore_digit_sync_lost;
 
@@ -87,6 +88,12 @@ int omap_crtc_wait_pending(struct drm_crtc *crtc)
 	return wait_event_timeout(omap_crtc->pending_wait,
 				  !omap_crtc_is_pending(crtc),
 				  msecs_to_jiffies(250));
+}
+
+bool omap_crtc_is_manual_updated(struct drm_crtc *crtc)
+{
+	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+	return omap_crtc->manually_updated;
 }
 
 /* -----------------------------------------------------------------------------
@@ -237,6 +244,9 @@ static void omap_crtc_dss_set_lcd_config(enum omap_channel channel,
 {
 	struct omap_crtc *omap_crtc = omap_crtcs[channel];
 	DBG("%s", omap_crtc->name);
+
+	omap_crtc->manually_updated = dss_lcd_mgr_config_get_stallmode(config);
+
 	dispc_mgr_set_lcd_config(omap_crtc->channel, config);
 }
 
@@ -355,9 +365,22 @@ static void omap_crtc_destroy(struct drm_crtc *crtc)
 static void omap_crtc_enable(struct drm_crtc *crtc)
 {
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+	struct drm_device *dev = crtc->dev;
+	struct drm_connector *connector;
 	int ret;
 
 	DBG("%s", omap_crtc->name);
+
+	/* manual updated display will not trigger vsync irq */
+	/* omap_crtc->manually_updated is not yet set */
+	drm_for_each_connector(connector, crtc->dev) {
+		if (connector->state->crtc != crtc)
+			continue;
+		if (!omap_connector_get_manually_updated(connector))
+			continue;
+		dev_dbg(dev->dev, "manually updated display detected!");
+		return;
+	}
 
 	spin_lock_irq(&crtc->dev->event_lock);
 	drm_crtc_vblank_on(crtc);
@@ -440,8 +463,10 @@ static void omap_crtc_atomic_flush(struct drm_crtc *crtc,
 
 	DBG("%s: GO", omap_crtc->name);
 
-	ret = drm_crtc_vblank_get(crtc);
-	WARN_ON(ret != 0);
+	if (!omap_crtc->manually_updated) {
+		ret = drm_crtc_vblank_get(crtc);
+		WARN_ON(ret != 0);
+	}
 
 	spin_lock_irq(&crtc->dev->event_lock);
 	dispc_mgr_go(omap_crtc->channel);
