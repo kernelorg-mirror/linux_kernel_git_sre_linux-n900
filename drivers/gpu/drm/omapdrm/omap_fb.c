@@ -333,6 +333,34 @@ struct drm_connector *omap_framebuffer_get_next_connector(
 	return NULL;
 }
 
+/* flush an area of the framebuffer (in case of manual update display that
+ * is not automatically flushed)
+ */
+void omap_framebuffer_flush(struct drm_framebuffer *fb,
+		int x, int y, int w, int h)
+{
+	struct drm_connector *connector = NULL;
+
+	VERB("flush: %d,%d %dx%d, fb=%p", x, y, w, h, fb);
+
+	/* FIXME: This is racy - no protection against modeset config changes. */
+	while ((connector = omap_framebuffer_get_next_connector(fb, connector))) {
+		/* only consider connectors that are part of a chain */
+		if (connector->encoder && connector->encoder->crtc) {
+			/* TODO: maybe this should propagate thru the crtc who
+			 * could do the coordinate translation..
+			 */
+			struct drm_crtc *crtc = connector->encoder->crtc;
+			int cx = max(0, x - crtc->x);
+			int cy = max(0, y - crtc->y);
+			int cw = w + (x - crtc->x) - cx;
+			int ch = h + (y - crtc->y) - cy;
+
+			omap_connector_flush(connector, cx, cy, cw, ch);
+		}
+	}
+}
+
 #ifdef CONFIG_DEBUG_FS
 void omap_framebuffer_describe(struct drm_framebuffer *fb, struct seq_file *m)
 {

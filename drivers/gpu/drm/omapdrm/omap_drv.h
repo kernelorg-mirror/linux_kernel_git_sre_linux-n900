@@ -155,6 +155,8 @@ struct drm_connector *omap_connector_init(struct drm_device *dev,
 struct drm_encoder *omap_connector_attached_encoder(
 		struct drm_connector *connector);
 bool omap_connector_get_hdmi_mode(struct drm_connector *connector);
+void omap_connector_flush(struct drm_connector *connector,
+		int x, int y, int w, int h);
 
 uint32_t omap_framebuffer_get_formats(uint32_t *pixel_formats,
 		uint32_t max_formats, enum omap_color_mode supported_modes);
@@ -169,6 +171,8 @@ void omap_framebuffer_update_scanout(struct drm_framebuffer *fb,
 struct drm_connector *omap_framebuffer_get_next_connector(
 		struct drm_framebuffer *fb, struct drm_connector *from);
 bool omap_framebuffer_supports_rotation(struct drm_framebuffer *fb);
+void omap_framebuffer_flush(struct drm_framebuffer *fb,
+		int x, int y, int w, int h);
 
 void omap_gem_init(struct drm_device *dev);
 void omap_gem_deinit(struct drm_device *dev);
