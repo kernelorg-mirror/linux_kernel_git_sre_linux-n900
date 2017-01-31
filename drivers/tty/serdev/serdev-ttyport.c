@@ -153,6 +153,37 @@ static unsigned int ttyport_set_baudrate(struct serdev_controller *ctrl, unsigne
 	return speed;
 }
 
+static void ttyport_set_rts(struct serdev_controller *ctrl, bool enable)
+{
+	struct serport *serport = serdev_controller_get_drvdata(ctrl);
+	struct tty_struct *tty = serport->tty;
+	int status = tty->driver->ops->tiocmget(tty);
+	unsigned int set = 0;
+	unsigned int clear = 0;
+
+	if (enable) {
+		set |= (TIOCM_OUT2 | TIOCM_RTS);
+		clear = ~set;
+		set &= TIOCM_DTR | TIOCM_RTS | TIOCM_OUT1 |
+		       TIOCM_OUT2 | TIOCM_LOOP;
+		clear &= TIOCM_DTR | TIOCM_RTS | TIOCM_OUT1 |
+			 TIOCM_OUT2 | TIOCM_LOOP;
+		status = tty->driver->ops->tiocmset(tty, set, clear);
+	} else {
+		set &= ~(TIOCM_OUT2 | TIOCM_RTS);
+		clear = ~set;
+		set &= TIOCM_DTR | TIOCM_RTS | TIOCM_OUT1 |
+		       TIOCM_OUT2 | TIOCM_LOOP;
+		clear &= TIOCM_DTR | TIOCM_RTS | TIOCM_OUT1 |
+			 TIOCM_OUT2 | TIOCM_LOOP;
+		status = tty->driver->ops->tiocmset(tty, set, clear);
+	}
+
+	if (status)
+		dev_err(&ctrl->dev, "failed to %s RTS: %d",
+			enable ? "enable" : "disable", status);
+}
+
 static void ttyport_set_flow_control(struct serdev_controller *ctrl, bool enable)
 {
 	struct serport *serport = serdev_controller_get_drvdata(ctrl);
@@ -164,7 +195,13 @@ static void ttyport_set_flow_control(struct serdev_controller *ctrl, bool enable
 	else
 		ktermios.c_cflag &= ~CRTSCTS;
 
+	if (enable)
+		ttyport_set_rts(ctrl, enable);
+
 	tty_set_termios(tty, &ktermios);
+
+	if (!enable)
+		ttyport_set_rts(ctrl, enable);
 }
 
 static void ttyport_wait_until_sent(struct serdev_controller *ctrl, long timeout)
