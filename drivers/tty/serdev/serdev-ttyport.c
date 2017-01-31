@@ -175,6 +175,20 @@ static void ttyport_wait_until_sent(struct serdev_controller *ctrl, long timeout
 	tty_wait_until_sent(tty, timeout);
 }
 
+static bool ttyport_get_cts(struct serdev_controller *ctrl)
+{
+	struct serport *serport = serdev_controller_get_drvdata(ctrl);
+	struct tty_struct *tty = serport->tty;
+	int status;
+
+	if (!tty->ops->tiocmget)
+		return false;
+
+	status = tty->ops->tiocmget(tty);
+
+	return !!(status & TIOCM_CTS);
+}
+
 static const struct serdev_controller_ops ctrl_ops = {
 	.write_buf = ttyport_write_buf,
 	.write_flush = ttyport_write_flush,
@@ -184,6 +198,7 @@ static const struct serdev_controller_ops ctrl_ops = {
 	.set_flow_control = ttyport_set_flow_control,
 	.set_baudrate = ttyport_set_baudrate,
 	.wait_until_sent = ttyport_wait_until_sent,
+	.get_cts = ttyport_get_cts,
 };
 
 struct device *serdev_tty_port_register(struct tty_port *port,

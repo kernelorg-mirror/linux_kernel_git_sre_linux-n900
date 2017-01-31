@@ -184,6 +184,17 @@ void serdev_device_wait_until_sent(struct serdev_device *serdev, long timeout)
 }
 EXPORT_SYMBOL_GPL(serdev_device_wait_until_sent);
 
+bool serdev_device_get_cts(struct serdev_device *serdev)
+{
+	struct serdev_controller *ctrl = serdev->ctrl;
+
+	if (!ctrl || !ctrl->ops->get_cts)
+		return false;
+
+	return ctrl->ops->get_cts(ctrl);
+}
+EXPORT_SYMBOL_GPL(serdev_device_get_cts);
+
 static int serdev_drv_probe(struct device *dev)
 {
 	const struct serdev_device_driver *sdrv = to_serdev_device_driver(dev->driver);
