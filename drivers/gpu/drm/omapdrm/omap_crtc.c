@@ -97,6 +97,11 @@ bool omap_crtc_is_manual_updated(struct drm_crtc *crtc)
 	return omap_crtc->manually_updated;
 }
 
+static void omap_crtc_manual_needs_flush(struct drm_crtc *crtc)
+{
+	omap_crtc_flush(crtc, 0, 0, 0, 0);
+}
+
 /* -----------------------------------------------------------------------------
  * DSS Manager Functions
  */
@@ -139,7 +144,11 @@ static void omap_crtc_dss_disconnect(enum omap_channel channel,
 
 static void omap_crtc_dss_start_update(enum omap_channel channel)
 {
+	struct omap_crtc *omap_crtc = omap_crtcs[channel];
+	struct drm_crtc *crtc = &omap_crtc->base;
+
 	dispc_mgr_enable(channel, true);
+	omap_crtc_manual_needs_flush(crtc);
 }
 
 /* Called only from the encoder enable/disable and suspend/resume handlers. */
@@ -155,11 +164,12 @@ static void omap_crtc_set_enabled(struct drm_crtc *crtc, bool enable)
 	if (WARN_ON(omap_crtc->enabled == enable))
 		return;
 
-	if (omap_crtc_output[channel]->output_type == OMAP_DISPLAY_TYPE_HDMI) {
-		dispc_mgr_enable(channel, enable);
-		omap_crtc->enabled = enable;
+	dispc_mgr_enable(channel, enable);
+	omap_crtc->enabled = enable;
+	omap_crtc_manual_needs_flush(crtc);
+
+	if (omap_crtc_output[channel]->output_type == OMAP_DISPLAY_TYPE_HDMI)
 		return;
-	}
 
 	if (omap_crtc->channel == OMAP_DSS_CHANNEL_DIGIT) {
 		/*
@@ -189,9 +199,6 @@ static void omap_crtc_set_enabled(struct drm_crtc *crtc, bool enable)
 		else
 			wait = omap_irq_wait_init(dev, vsync_irq, 2);
 	}
-
-	dispc_mgr_enable(channel, enable);
-	omap_crtc->enabled = enable;
 
 	ret = omap_irq_wait(dev, wait, msecs_to_jiffies(100));
 	if (ret) {
@@ -554,6 +561,7 @@ static void omap_crtc_atomic_flush(struct drm_crtc *crtc,
 		ret = drm_crtc_vblank_get(crtc);
 		WARN_ON(ret != 0);
 	}
+	omap_crtc_flush(&omap_crtc->base, 0, 0, 0, 0);
 
 	spin_lock_irq(&crtc->dev->event_lock);
 	dispc_mgr_enable(omap_crtc->channel, true);
