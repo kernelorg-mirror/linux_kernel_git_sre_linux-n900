@@ -1,0 +1,1 @@
+Please see binding for i2c-sc18is600

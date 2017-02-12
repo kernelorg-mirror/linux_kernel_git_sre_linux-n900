@@ -1123,6 +1123,16 @@ config I2C_ROBOTFUZZ_OSIF
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-osif.
 
+config I2C_SC18IS600
+	tristate "NXP SC18IS600"
+	depends on SPI && REGMAP
+	help
+	  If you say yes to this option, support will be included for the
+	  NXP SC18IS600 SPI to I2C-bus interface.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called i2c-sc18is600.
+
 config I2C_TAOS_EVM
 	tristate "TAOS evaluation module"
 	depends on TTY

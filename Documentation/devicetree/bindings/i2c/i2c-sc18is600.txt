@@ -1,0 +1,62 @@
+NXP SC18IS600 and Silabs CP2120 - SPI to I2C bus bridge
+
+NXP SC18IS600 is a SPI slave chip, which implements an I²C host,
+also known as SPI to I²C bus bridge. SC18IS601 is the same chip,
+but has an external clock input instead of using a builtin
+oscillator. CP2120 is a similar chip from Silabs, which implements
+the same interface as NXP's SC18IS600.
+
+Required properties:
+  - compatible: Should contain one of
+      * "nxp,sc18is600"
+      * "nxp,sc18is601"
+      * "silabs,cp2120"
+  - reg: address of the chip on SPI bus
+  - interrupts: Interrupt specifier. Refer to interrupt bindings.
+  - #address-cells: Should be 1.
+  - #size-cells: Should be 0.
+
+Required properties for sc18is601:
+  - clkin: Clock specifier for CLKIN pin
+
+Optional properties:
+  - clock-frequency:
+    Desired I2C bus frequency in Hz, otherwise defaults to 100 KHz
+  - reset-gpios
+    GPIO specifier for reset pin, which is active low.
+  - vdd-supply
+    Regulator specifier for VDD supply (3.3V).
+  - Child nodes conforming to i2c bus binding
+
+Example:
+
+&spi_controller {
+	sc18is600: i2c@0 {
+		compatible = "nxp,sc18is600";
+		spi-max-frequency = <700000>; /* 700KHz */
+		spi-cpol;
+		spi-cpha;
+		reg = <0>;
+
+		vdd-supply = <&regulator_v33>;
+
+		interrupt-parent = <&socgpio>;
+		interrupts = <25 0x2>;
+
+		reset-gpios = <&i2cgpio1 9 GPIO_ACTIVE_LOW>;
+
+		clock-frequency = <100000>; /* 100KHz */
+
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+	};
+};
+
+&sc18is600 {
+	i2c_device@42 {
+		compatible = "some,i2c-device";
+		reg = <0x42>;
+	};
+
+	...
+};
