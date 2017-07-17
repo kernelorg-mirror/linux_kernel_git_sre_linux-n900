@@ -42,6 +42,7 @@ struct omap_crtc {
 	bool pending;
 	wait_queue_head_t pending_wait;
 	struct drm_pending_vblank_event *event;
+	struct delayed_work update_work;
 
 	void (*framedone_handler)(void *);
 	void *framedone_handler_data;
@@ -133,6 +134,10 @@ static void omap_crtc_dss_disconnect(enum omap_channel channel,
 
 static void omap_crtc_dss_start_update(enum omap_channel channel)
 {
+	struct omap_crtc *omap_crtc = omap_crtcs[channel];
+	struct omap_drm_private *priv = omap_crtc->base.dev->dev_private;
+
+	priv->dispc_ops->mgr_enable(channel, true);
 }
 
 /* Called only from the encoder enable/disable and suspend/resume handlers. */
@@ -166,6 +171,9 @@ static void omap_crtc_set_enabled(struct drm_crtc *crtc, bool enable)
 	framedone_irq = priv->dispc_ops->mgr_get_framedone_irq(channel);
 	vsync_irq = priv->dispc_ops->mgr_get_vsync_irq(channel);
 
+	priv->dispc_ops->mgr_enable(channel, enable);
+	omap_crtc->enabled = enable;
+
 	if (enable) {
 		wait = omap_irq_wait_init(dev, vsync_irq, 1);
 	} else {
@@ -183,9 +191,6 @@ static void omap_crtc_set_enabled(struct drm_crtc *crtc, bool enable)
 		else
 			wait = omap_irq_wait_init(dev, vsync_irq, 2);
 	}
-
-	priv->dispc_ops->mgr_enable(channel, enable);
-	omap_crtc->enabled = enable;
 
 	ret = omap_irq_wait(dev, wait, msecs_to_jiffies(100));
 	if (ret) {
@@ -336,6 +341,100 @@ void omap_crtc_vblank_irq(struct drm_crtc *crtc)
 	DBG("%s: apply done", omap_crtc->name);
 }
 
+void omap_crtc_framedone_irq(struct drm_crtc *crtc, uint32_t irqstatus)
+{
+	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+
+	if (!omap_crtc->framedone_handler) {
+		dev_warn(omap_crtc->base.dev->dev, "no framedone handler?");
+		return;
+	}
+
+	omap_crtc->framedone_handler(omap_crtc->framedone_handler_data);
+
+	spin_lock(&crtc->dev->event_lock);
+	/* Send the vblank event if one has been requested. */
+	if (omap_crtc->event) {
+		drm_crtc_send_vblank_event(crtc, omap_crtc->event);
+		omap_crtc->event = NULL;
+	}
+	omap_crtc->pending = false;
+	spin_unlock(&crtc->dev->event_lock);
+
+	/* Wake up omap_atomic_complete. */
+	wake_up(&omap_crtc->pending_wait);
+}
+
+static bool omap_crtc_is_manually_updated(struct drm_crtc *crtc)
+{
+	struct drm_connector *connector;
+	struct drm_connector_list_iter conn_iter;
+	bool result = false;
+
+	drm_connector_list_iter_begin(crtc->dev, &conn_iter);
+	drm_for_each_connector_iter(connector, &conn_iter) {
+		if (connector->state->crtc != crtc)
+			continue;
+		result = omap_connector_get_manually_updated(connector);
+		break;
+	}
+	drm_connector_list_iter_end(&conn_iter);
+
+	return result;
+}
+
+void omap_crtc_flush(struct drm_crtc *crtc)
+{
+	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+
+	if (!omap_crtc_is_manually_updated(crtc))
+		return;
+
+	if (!delayed_work_pending(&omap_crtc->update_work))
+		schedule_delayed_work(&omap_crtc->update_work, 0);
+}
+
+static void omap_crtc_manual_display_update(struct work_struct *data)
+{
+	struct omap_crtc *omap_crtc =
+			container_of(data, struct omap_crtc, update_work.work);
+	struct drm_crtc *crtc = &omap_crtc->base;
+	struct omap_dss_device *dssdev = omap_crtc_output[omap_crtc->channel];
+	struct omap_dss_driver *dssdrv;
+	int ret;
+
+	if (!dssdev || !dssdev->dst) {
+		dev_err_once(omap_crtc->base.dev->dev, "missing dssdev!");
+		return;
+	}
+
+	dssdev = dssdev->dst;
+	dssdrv = dssdev->driver;
+
+	if (!dssdrv)
+		return;
+
+	if (!dssdrv || !dssdrv->update)
+		return;
+
+	/* TODO: FIXME
+	 * REVISIT: Testing and setting omap_crtc->pending here will cause all
+	 * kind of warnings at least on droid 4. Maybe we should be testing
+	 * something else here instead of omap_crtc->pending?
+	 */
+	if (dssdrv->sync)
+		dssdrv->sync(dssdev);
+
+	ret = dssdrv->update(dssdev, 0, 0,
+	dssdev->panel.vm.vactive, dssdev->panel.vm.hactive);
+	if (ret < 0) {
+		spin_lock_irq(&crtc->dev->event_lock);
+		omap_crtc->pending = false;
+		spin_unlock_irq(&crtc->dev->event_lock);
+		wake_up(&omap_crtc->pending_wait);
+	}
+}
+
 static void omap_crtc_write_crtc_properties(struct drm_crtc *crtc)
 {
 	struct omap_drm_private *priv = crtc->dev->dev_private;
@@ -387,6 +486,12 @@ static void omap_crtc_enable(struct drm_crtc *crtc)
 
 	DBG("%s", omap_crtc->name);
 
+	/* manual updated display will not trigger vsync irq */
+	if (omap_crtc_is_manually_updated(crtc)) {
+		dev_dbg(crtc->dev->dev, "manually updated display detected!");
+		return;
+	}
+
 	spin_lock_irq(&crtc->dev->event_lock);
 	drm_crtc_vblank_on(crtc);
 	ret = drm_crtc_vblank_get(crtc);
@@ -399,6 +504,7 @@ static void omap_crtc_enable(struct drm_crtc *crtc)
 static void omap_crtc_disable(struct drm_crtc *crtc)
 {
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+	struct drm_device *dev = crtc->dev;
 
 	DBG("%s", omap_crtc->name);
 
@@ -408,6 +514,11 @@ static void omap_crtc_disable(struct drm_crtc *crtc)
 		crtc->state->event = NULL;
 	}
 	spin_unlock_irq(&crtc->dev->event_lock);
+
+	cancel_delayed_work(&omap_crtc->update_work);
+
+	if (!omap_crtc_wait_pending(crtc))
+		dev_warn(dev->dev, "manual display update did not finish!");
 
 	drm_crtc_vblank_off(crtc);
 }
@@ -511,8 +622,12 @@ static void omap_crtc_atomic_flush(struct drm_crtc *crtc,
 
 	DBG("%s: GO", omap_crtc->name);
 
-	ret = drm_crtc_vblank_get(crtc);
-	WARN_ON(ret != 0);
+	if (!omap_crtc_is_manually_updated(crtc)) {
+		ret = drm_crtc_vblank_get(crtc);
+		WARN_ON(ret != 0);
+	} else {
+		omap_crtc_flush(crtc);
+	}
 
 	spin_lock_irq(&crtc->dev->event_lock);
 	priv->dispc_ops->mgr_go(omap_crtc->channel);
@@ -652,6 +767,9 @@ struct drm_crtc *omap_crtc_init(struct drm_device *dev,
 
 	omap_crtc->channel = channel;
 	omap_crtc->name = channel_names[channel];
+
+	INIT_DELAYED_WORK(&omap_crtc->update_work,
+			  omap_crtc_manual_display_update);
 
 	ret = drm_crtc_init_with_planes(dev, crtc, plane, NULL,
 					&omap_crtc_funcs, NULL);

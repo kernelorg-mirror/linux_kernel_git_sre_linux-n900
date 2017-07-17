@@ -124,6 +124,8 @@ struct drm_crtc *omap_crtc_init(struct drm_device *dev,
 int omap_crtc_wait_pending(struct drm_crtc *crtc);
 void omap_crtc_error_irq(struct drm_crtc *crtc, uint32_t irqstatus);
 void omap_crtc_vblank_irq(struct drm_crtc *crtc);
+void omap_crtc_framedone_irq(struct drm_crtc *crtc, uint32_t irqstatus);
+void omap_crtc_flush(struct drm_crtc *crtc);
 
 struct drm_plane *omap_plane_init(struct drm_device *dev,
 		int idx, enum drm_plane_type type,
@@ -140,6 +142,7 @@ struct drm_connector *omap_connector_init(struct drm_device *dev,
 struct drm_encoder *omap_connector_attached_encoder(
 		struct drm_connector *connector);
 bool omap_connector_get_hdmi_mode(struct drm_connector *connector);
+bool omap_connector_get_manually_updated(struct drm_connector *connector);
 
 struct drm_framebuffer *omap_framebuffer_create(struct drm_device *dev,
 		struct drm_file *file, const struct drm_mode_fb_cmd2 *mode_cmd);
@@ -152,6 +155,7 @@ void omap_framebuffer_update_scanout(struct drm_framebuffer *fb,
 struct drm_connector *omap_framebuffer_get_next_connector(
 		struct drm_framebuffer *fb, struct drm_connector *from);
 bool omap_framebuffer_supports_rotation(struct drm_framebuffer *fb);
+void omap_framebuffer_flush(struct drm_framebuffer *fb);
 
 void omap_gem_init(struct drm_device *dev);
 void omap_gem_deinit(struct drm_device *dev);

@@ -97,8 +97,19 @@ static void omap_framebuffer_destroy(struct drm_framebuffer *fb)
 	kfree(omap_fb);
 }
 
+static int omap_framebuffer_dirty(struct drm_framebuffer *fb,
+				  struct drm_file *file_priv,
+				  unsigned flags, unsigned color,
+				  struct drm_clip_rect *clips,
+				  unsigned num_clips)
+{
+	omap_framebuffer_flush(fb);
+	return 0;
+}
+
 static const struct drm_framebuffer_funcs omap_framebuffer_funcs = {
 	.create_handle = omap_framebuffer_create_handle,
+	.dirty = omap_framebuffer_dirty,
 	.destroy = omap_framebuffer_destroy,
 };
 
@@ -336,6 +347,20 @@ struct drm_connector *omap_framebuffer_get_next_connector(
 	}
 
 	return NULL;
+}
+
+/* flush an area of the framebuffer
+ * (in case of manual update display that is not automatically flushed)
+ */
+void omap_framebuffer_flush(struct drm_framebuffer *fb)
+{
+	struct drm_connector *connector = NULL;
+
+	/* FIXME: This is racy - no protection against modeset config changes. */
+	while ((connector = omap_framebuffer_get_next_connector(fb, connector))) {
+		if (connector->encoder && connector->encoder->crtc)
+			omap_crtc_flush(connector->encoder->crtc);
+	}
 }
 
 #ifdef CONFIG_DEBUG_FS

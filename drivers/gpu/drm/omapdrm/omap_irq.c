@@ -217,6 +217,9 @@ static irqreturn_t omap_irq_handler(int irq, void *arg)
 
 		if (irqstatus & priv->dispc_ops->mgr_get_sync_lost_irq(channel))
 			omap_crtc_error_irq(crtc, irqstatus);
+
+		if (irqstatus & priv->dispc_ops->mgr_get_framedone_irq(channel))
+			omap_crtc_framedone_irq(crtc, irqstatus);
 	}
 
 	omap_irq_ocp_error_handler(dev, irqstatus);
@@ -266,8 +269,10 @@ int omap_drm_irq_install(struct drm_device *dev)
 			priv->irq_mask |= omap_underflow_irqs[i];
 	}
 
-	for (i = 0; i < num_mgrs; ++i)
+	for (i = 0; i < num_mgrs; ++i) {
 		priv->irq_mask |= priv->dispc_ops->mgr_get_sync_lost_irq(i);
+		priv->irq_mask |= priv->dispc_ops->mgr_get_framedone_irq(i);
+	}
 
 	priv->dispc_ops->runtime_get();
 	priv->dispc_ops->clear_irqstatus(0xffffffff);
