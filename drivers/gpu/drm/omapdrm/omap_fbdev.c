@@ -42,41 +42,7 @@ struct omap_fbdev {
 	struct work_struct work;
 };
 
-static void omap_fbdev_flush(struct fb_info *fbi, int x, int y, int w, int h);
 static struct drm_fb_helper *get_fb(struct fb_info *fbi);
-
-static ssize_t omap_fbdev_write(struct fb_info *fbi, const char __user *buf,
-				size_t count, loff_t *ppos)
-{
-	ssize_t res;
-
-	res = fb_sys_write(fbi, buf, count, ppos);
-	omap_fbdev_flush(fbi, 0, 0, fbi->var.xres, fbi->var.yres);
-
-	return res;
-}
-
-static void omap_fbdev_fillrect(struct fb_info *fbi,
-				const struct fb_fillrect *rect)
-{
-	sys_fillrect(fbi, rect);
-	omap_fbdev_flush(fbi, rect->dx, rect->dy, rect->width, rect->height);
-}
-
-static void omap_fbdev_copyarea(struct fb_info *fbi,
-				const struct fb_copyarea *area)
-{
-	sys_copyarea(fbi, area);
-	omap_fbdev_flush(fbi, area->dx, area->dy, area->width, area->height);
-}
-
-static void omap_fbdev_imageblit(struct fb_info *fbi,
-				 const struct fb_image *image)
-{
-	sys_imageblit(fbi, image);
-	omap_fbdev_flush(fbi, image->dx, image->dy, image->width,
-			 image->height);
-}
 
 static void pan_worker(struct work_struct *work)
 {
@@ -118,14 +84,11 @@ static struct fb_ops omap_fb_ops = {
 	.owner = THIS_MODULE,
 	DRM_FB_HELPER_DEFAULT_OPS,
 
-	/* Note: to properly handle manual update displays, we wrap the
-	 * basic fbdev ops which write to the framebuffer
-	 */
 	.fb_read = drm_fb_helper_sys_read,
-	.fb_write = omap_fbdev_write,
-	.fb_fillrect = omap_fbdev_fillrect,
-	.fb_copyarea = omap_fbdev_copyarea,
-	.fb_imageblit = omap_fbdev_imageblit,
+	.fb_write = drm_fb_helper_sys_write,
+	.fb_fillrect = drm_fb_helper_sys_fillrect,
+	.fb_copyarea = drm_fb_helper_sys_copyarea,
+	.fb_imageblit = drm_fb_helper_sys_imageblit,
 
 	.fb_pan_display = omap_fbdev_pan_display,
 };
@@ -346,19 +309,4 @@ void omap_fbdev_free(struct drm_device *dev)
 	kfree(fbdev);
 
 	priv->fbdev = NULL;
-}
-
-/* flush an area of the framebuffer (in case of manual update display that
- * is not automatically flushed)
- */
-static void omap_fbdev_flush(struct fb_info *fbi, int x, int y, int w, int h)
-{
-	struct drm_fb_helper *helper = get_fb(fbi);
-
-	if (!helper)
-		return;
-
-	VERB("flush fbdev: %d,%d %dx%d, fbi=%p", x, y, w, h, fbi);
-
-	omap_framebuffer_flush(helper->fb);
 }
