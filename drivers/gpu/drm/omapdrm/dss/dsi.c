@@ -2403,7 +2403,7 @@ static int dsi_sync_vc(struct platform_device *dsidev, int channel)
 static int dsi_vc_enable(struct platform_device *dsidev, int channel,
 		bool enable)
 {
-	DSSDBG("dsi_vc_enable channel %d, enable %d\n",
+	dev_dbg_ratelimited(&dsidev->dev, "dsi_vc_enable channel %d, enable %d\n",
 			channel, enable);
 
 	enable = enable ? 1 : 0;
@@ -2412,7 +2412,7 @@ static int dsi_vc_enable(struct platform_device *dsidev, int channel,
 
 	if (wait_for_bit_change(dsidev, DSI_VC_CTRL(channel),
 		0, enable) != enable) {
-			DSSERR("Failed to set dsi_vc_enable to %d\n", enable);
+			dev_err(&dsidev->dev, "Failed to set dsi_vc_enable to %d\n", enable);
 			return -EIO;
 	}
 
@@ -2458,7 +2458,7 @@ static int dsi_vc_config_source(struct platform_device *dsidev, int channel,
 	if (dsi->vc[channel].source == source)
 		return 0;
 
-	DSSDBG("Source config of virtual channel %d", channel);
+	dev_dbg_ratelimited(&dsidev->dev, "Source config of virtual channel %d", channel);
 
 	dsi_sync_vc(dsidev, channel);
 
@@ -2466,7 +2466,7 @@ static int dsi_vc_config_source(struct platform_device *dsidev, int channel,
 
 	/* VC_BUSY */
 	if (wait_for_bit_change(dsidev, DSI_VC_CTRL(channel), 15, 0) != 0) {
-		DSSERR("vc(%d) busy when trying to config for VP\n", channel);
+		dev_err(&dsidev->dev, "vc(%d) busy when trying to config for VP\n", channel);
 		return -EIO;
 	}
 
@@ -3921,7 +3921,7 @@ static void dsi_update_screen_dispc(struct platform_device *dsidev)
 	u16 w = dsi->vm.hactive;
 	u16 h = dsi->vm.vactive;
 
-	DSSDBG("dsi_update_screen_dispc(%dx%d)\n", w, h);
+	dev_dbg_ratelimited(&dsidev->dev, "dsi_update_screen_dispc(%dx%d)\n", w, h);
 
 	dsi_vc_config_source(dsidev, channel, DSI_VC_SOURCE_VP);
 
