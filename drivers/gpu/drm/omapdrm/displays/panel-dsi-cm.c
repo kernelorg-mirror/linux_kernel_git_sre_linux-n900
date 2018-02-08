@@ -68,6 +68,7 @@ struct panel_drv_data {
 
 	int width_mm;
 	int height_mm;
+	int orientation;
 
 	struct omap_dsi_pin_config pin_config;
 
@@ -1198,6 +1199,14 @@ static void dsicm_get_size(struct omap_dss_device *dssdev,
 	*height = ddata->height_mm;
 }
 
+static void dsicm_get_orientation(struct omap_dss_device *dssdev,
+				  int *orientation)
+{
+	struct panel_drv_data *ddata = to_panel_data(dssdev);
+
+	*orientation = ddata->orientation;
+}
+
 static struct omap_dss_driver dsicm_ops = {
 	.connect	= dsicm_connect,
 	.disconnect	= dsicm_disconnect,
@@ -1211,6 +1220,7 @@ static struct omap_dss_driver dsicm_ops = {
 	.get_timings	= dsicm_get_timings,
 	.check_timings	= dsicm_check_timings,
 	.get_size	= dsicm_get_size,
+	.get_orientation = dsicm_get_orientation,
 
 	.enable_te	= dsicm_enable_te,
 	.get_te		= dsicm_get_te,
@@ -1258,6 +1268,9 @@ static int dsicm_probe_of(struct platform_device *pdev)
 
 	ddata->height_mm = 0;
 	of_property_read_u32(node, "height-mm", &ddata->height_mm);
+
+	ddata->orientation = DRM_MODE_PANEL_ORIENTATION_UNKNOWN;
+	of_property_read_u32(node, "orientation", &ddata->orientation);
 
 	in = omapdss_of_find_source_for_first_ep(node);
 	if (IS_ERR(in)) {
