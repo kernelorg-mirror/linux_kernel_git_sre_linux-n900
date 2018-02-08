@@ -249,6 +249,7 @@ struct drm_connector *omap_connector_init(struct drm_device *dev,
 	struct drm_connector *connector = NULL;
 	struct omap_connector *omap_connector;
 	bool hpd_supported = false;
+	int ret;
 
 	DBG("%s", dssdev->name);
 
@@ -267,7 +268,7 @@ struct drm_connector *omap_connector_init(struct drm_device *dev,
 	drm_connector_helper_add(connector, &omap_connector_helper_funcs);
 
 	if (dssdev->driver->register_hpd_cb) {
-		int ret = dssdev->driver->register_hpd_cb(dssdev,
+		ret = dssdev->driver->register_hpd_cb(dssdev,
 							  omap_connector_hpd_cb,
 							  omap_connector);
 		if (!ret)
@@ -287,6 +288,13 @@ struct drm_connector *omap_connector_init(struct drm_device *dev,
 
 	connector->interlace_allowed = 1;
 	connector->doublescan_allowed = 0;
+
+	if (dssdev->driver->get_orientation)
+		dssdev->driver->get_orientation(dssdev, &connector->display_info.panel_orientation);
+
+	ret = drm_connector_init_panel_orientation_property(connector, 0, 0);
+	if (ret)
+		DBG("%s: Failed to init orientation property (%d)", dssdev->name, ret);
 
 	return connector;
 
