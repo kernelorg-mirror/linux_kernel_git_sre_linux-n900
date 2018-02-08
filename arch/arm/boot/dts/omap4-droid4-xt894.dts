@@ -6,6 +6,7 @@
 /dts-v1/;
 
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/display/common.h>
 #include "omap443x.dtsi"
 #include "motorola-cpcap-mapphone.dtsi"
 
@@ -180,6 +181,8 @@
 		width-mm = <50>;
 		height-mm = <89>;
 		backlight = <&lcd_backlight>;
+
+		orientation = <PANEL_ORIENTATION_RIGHT_UP>;
 
 		panel-timing {
 			clock-frequency = <0>;		/* Calculated by dsi */
