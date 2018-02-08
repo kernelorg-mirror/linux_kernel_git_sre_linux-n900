@@ -18,6 +18,18 @@ Descriptive Properties
   physical area where images are displayed. These properties are expressed in
   millimeters and rounded to the closest unit.
 
+- orientation: The orientation property specifies the panel orientation
+  in relation to the device's casing. The following values are possible:
+
+   * 0 = The top side of the panel matches the top side of the device's
+         casing.
+   * 1 = The top side of the panel matches the bottom side of the device's
+         casing. In other words the panel is mounted upside-down.
+   * 2 = The left side of the panel matches the top side of the device's
+         casing.
+   * 3 = The right side of the panel matches the top side of the device's
+         casing.
+
 - label: The label property specifies a symbolic name for the panel as a
   string suitable for use by humans. It typically contains a name inscribed on
   the system (e.g. as an affixed label) or specified in the system's
