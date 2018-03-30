@@ -66,6 +66,10 @@ static void omap_atomic_wait_for_completion(struct drm_device *dev,
 	}
 }
 
+/*
+ * TODO: This is called on atomic page flip, so we should update
+ *       manually updated displays (e.g. DSI command mode panels)
+ */
 static void omap_atomic_commit_tail(struct drm_atomic_state *old_state)
 {
 	struct drm_device *dev = old_state->dev;
