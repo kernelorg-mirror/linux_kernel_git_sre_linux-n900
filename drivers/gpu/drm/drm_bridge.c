@@ -125,6 +125,7 @@ static const struct drm_private_state_funcs drm_bridge_priv_state_funcs = {
  * @encoder: DRM encoder
  * @bridge: bridge to attach
  * @previous: previous bridge in the chain (optional)
+ * @flags: DRM_BRIDGE_ATTACH_* flags
  *
  * Called by a kms driver to link the bridge to an encoder's chain. The previous
  * argument specifies the previous bridge in the chain. If NULL, the bridge is
@@ -142,7 +143,8 @@ static const struct drm_private_state_funcs drm_bridge_priv_state_funcs = {
  * Zero on success, error code on failure
  */
 int drm_bridge_attach(struct drm_encoder *encoder, struct drm_bridge *bridge,
-		      struct drm_bridge *previous)
+		      struct drm_bridge *previous,
+		      enum drm_bridge_attach_flags flags)
 {
 	int ret;
 
@@ -164,7 +166,7 @@ int drm_bridge_attach(struct drm_encoder *encoder, struct drm_bridge *bridge,
 		list_add(&bridge->chain_node, &encoder->bridge_chain);
 
 	if (bridge->funcs->attach) {
-		ret = bridge->funcs->attach(bridge);
+		ret = bridge->funcs->attach(bridge, flags);
 		if (ret < 0)
 			goto err_reset_bridge;
 	}
