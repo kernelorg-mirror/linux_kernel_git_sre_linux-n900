@@ -122,6 +122,14 @@ static void omap_encoder_mode_set(struct drm_encoder *encoder,
 
 	dssdev = omap_encoder->output;
 
+	/* The following operations access dssdev->ops->hdmi, which is a union
+	 * also used by DSI. This ensures, that the field does not have data
+	 * for DSI (or any other future output type).
+	 */
+	if (dssdev->output_type != OMAP_DISPLAY_TYPE_HDMI &&
+	    dssdev->output_type != OMAP_DISPLAY_TYPE_DVI)
+		return;
+
 	if (dssdev->ops->hdmi.set_hdmi_mode)
 		dssdev->ops->hdmi.set_hdmi_mode(dssdev, hdmi_mode);
 
