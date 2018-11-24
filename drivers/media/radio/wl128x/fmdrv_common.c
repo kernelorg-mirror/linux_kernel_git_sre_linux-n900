@@ -1242,7 +1242,7 @@ static int fm_download_firmware(struct fmdev *fmdev, const u8 *fw_name)
 	set_bit(FM_FW_DW_INPROGRESS, &fmdev->flag);
 
 	ret = request_firmware(&fw_entry, fw_name,
-				&fmdev->radio_dev->dev);
+				&fmdev->radio_dev.dev);
 	if (ret < 0) {
 		fmerr("Unable to read firmware(%s) content\n", fw_name);
 		return ret;

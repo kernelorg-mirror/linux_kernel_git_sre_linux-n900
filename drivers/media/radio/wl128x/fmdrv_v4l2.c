@@ -32,7 +32,6 @@
 #include "fmdrv_rx.h"
 #include "fmdrv_tx.h"
 
-static struct video_device gradio_dev;
 static u8 radio_disconnected;
 
 /* -- V4L2 RADIO (/dev/radioX) device file operation interfaces --- */
@@ -541,23 +540,20 @@ int fm_v4l2_init_video_device(struct fmdev *fmdev, int radio_nr)
 	mutex_init(&fmdev->mutex);
 
 	/* Setup FM driver's V4L2 properties */
-	gradio_dev = fm_viddev_template;
+	fmdev->radio_dev = fm_viddev_template;
 
-	video_set_drvdata(&gradio_dev, fmdev);
-
-	gradio_dev.lock = &fmdev->mutex;
-	gradio_dev.v4l2_dev = &fmdev->v4l2_dev;
+	video_set_drvdata(&fmdev->radio_dev, fmdev);
+	fmdev->radio_dev.lock = &fmdev->mutex;
+	fmdev->radio_dev.v4l2_dev = &fmdev->v4l2_dev;
 
 	/* Register with V4L2 subsystem as RADIO device */
-	if (video_register_device(&gradio_dev, VFL_TYPE_RADIO, radio_nr)) {
+	if (video_register_device(&fmdev->radio_dev, VFL_TYPE_RADIO, radio_nr)) {
 		fmerr("Could not register video device\n");
 		return -ENOMEM;
 	}
 
-	fmdev->radio_dev = &gradio_dev;
-
 	/* Register to v4l2 ctrl handler framework */
-	fmdev->radio_dev->ctrl_handler = &fmdev->ctrl_handler;
+	fmdev->radio_dev.ctrl_handler = &fmdev->ctrl_handler;
 
 	ret = v4l2_ctrl_handler_init(&fmdev->ctrl_handler, 5);
 	if (ret < 0) {
@@ -601,7 +597,7 @@ void fm_v4l2_deinit_video_device(struct fmdev *fmdev)
 	v4l2_ctrl_handler_free(&fmdev->ctrl_handler);
 
 	/* Unregister RADIO device from V4L2 subsystem */
-	video_unregister_device(&gradio_dev);
+	video_unregister_device(&fmdev->radio_dev);
 
 	v4l2_device_unregister(&fmdev->v4l2_dev);
 }
