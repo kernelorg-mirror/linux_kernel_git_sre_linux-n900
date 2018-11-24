@@ -595,13 +595,8 @@ int fm_v4l2_init_video_device(struct fmdev *fmdev, int radio_nr)
 	return 0;
 }
 
-void *fm_v4l2_deinit_video_device(void)
+void fm_v4l2_deinit_video_device(struct fmdev *fmdev)
 {
-	struct fmdev *fmdev;
-
-
-	fmdev = video_get_drvdata(&gradio_dev);
-
 	/* Unregister to v4l2 ctrl handler framework*/
 	v4l2_ctrl_handler_free(&fmdev->ctrl_handler);
 
@@ -609,6 +604,4 @@ void *fm_v4l2_deinit_video_device(void)
 	video_unregister_device(&gradio_dev);
 
 	v4l2_device_unregister(&fmdev->v4l2_dev);
-
-	return fmdev;
 }

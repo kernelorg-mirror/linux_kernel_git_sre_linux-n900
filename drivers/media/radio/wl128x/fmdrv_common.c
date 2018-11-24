@@ -1644,8 +1644,10 @@ static int wl128x_fm_probe(struct platform_device *pdev)
 
 static int wl128x_fm_remove(struct platform_device *pdev)
 {
+	struct fmdev *fmdev = platform_get_drvdata(pdev);
+
 	/* Ask FM V4L module to unregister video device */
-	fm_v4l2_deinit_video_device();
+	fm_v4l2_deinit_video_device(fmdev);
 
 	return 0;
 }
