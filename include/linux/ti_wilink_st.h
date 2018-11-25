@@ -86,6 +86,8 @@ struct st_proto_s {
 extern long st_register(struct st_proto_s *);
 extern long st_unregister(struct st_proto_s *);
 
+void hci_ti_set_fm_handler(struct device *dev, void (*recv_handler) (void *, struct sk_buff *), void *drvdata);
+int hci_ti_fm_send(struct device *dev, struct sk_buff *skb);
 
 /*
  * header information used by st_core.c

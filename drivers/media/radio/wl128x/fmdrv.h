@@ -197,6 +197,7 @@ struct fmtx_data {
 
 /* FM driver operation structure */
 struct fmdev {
+	struct device *dev;
 	struct video_device radio_dev;	/* V4L2 video device pointer */
 	struct v4l2_device v4l2_dev;	/* V4L2 top level struct */
 	struct snd_card *card;	/* Card which holds FM mixer controls */

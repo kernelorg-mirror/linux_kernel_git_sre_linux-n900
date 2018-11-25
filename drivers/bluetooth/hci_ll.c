@@ -49,6 +49,7 @@
 #include <linux/skbuff.h>
 #include <linux/ti_wilink_st.h>
 #include <linux/clk.h>
+#include <linux/platform_device.h>
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
@@ -62,6 +63,7 @@
 #define HCI_VS_UPDATE_UART_HCI_BAUDRATE		0xff36
 
 /* HCILL commands */
+#define HCILL_FM_RADIO		0x08
 #define HCILL_GO_TO_SLEEP_IND	0x30
 #define HCILL_GO_TO_SLEEP_ACK	0x31
 #define HCILL_WAKE_UP_IND	0x32
@@ -81,6 +83,10 @@ struct ll_device {
 	struct gpio_desc *enable_gpio;
 	struct clk *ext_clk;
 	bdaddr_t bdaddr;
+
+	struct platform_device *fmdev;
+	void (*fm_handler) (void *, struct sk_buff *);
+	void *fm_drvdata;
 };
 
 struct ll_struct {
@@ -161,6 +167,35 @@ static int ll_flush(struct hci_uart *hu)
 	return 0;
 }
 
+static int ll_register_fm(struct ll_device *lldev)
+{
+	struct device *dev = &lldev->serdev->dev;
+	int err;
+
+	if (!of_device_is_compatible(dev->of_node, "ti,wl1281-st") &&
+	    !of_device_is_compatible(dev->of_node, "ti,wl1283-st") &&
+	    !of_device_is_compatible(dev->of_node, "ti,wl1285-st"))
+		return -ENODEV;
+
+	lldev->fmdev = platform_device_register_data(dev, "wl128x-fm",
+		PLATFORM_DEVID_AUTO, NULL, 0);
+	err = PTR_ERR_OR_ZERO(lldev->fmdev);
+	if (err) {
+		dev_warn(dev, "cannot register FM radio subdevice: %d\n", err);
+		lldev->fmdev = NULL;
+	}
+
+	return err;
+}
+
+static void ll_unregister_fm(struct ll_device *lldev)
+{
+	if (!lldev->fmdev)
+		return;
+	platform_device_unregister(lldev->fmdev);
+	lldev->fmdev = NULL;
+}
+
 /* Close protocol */
 static int ll_close(struct hci_uart *hu)
 {
@@ -178,6 +213,8 @@ static int ll_close(struct hci_uart *hu)
 		gpiod_set_value_cansleep(lldev->enable_gpio, 0);
 
 		clk_disable_unprepare(lldev->ext_clk);
+
+		ll_unregister_fm(lldev);
 	}
 
 	hu->priv = NULL;
@@ -313,17 +350,10 @@ static void ll_device_woke_up(struct hci_uart *hu)
 	hci_uart_tx_wakeup(hu);
 }
 
-/* Enqueue frame for transmittion (padding, crc, etc) */
-/* may be called from two simultaneous tasklets */
-static int ll_enqueue(struct hci_uart *hu, struct sk_buff *skb)
+static int ll_enqueue_prefixed(struct hci_uart *hu, struct sk_buff *skb)
 {
 	unsigned long flags = 0;
 	struct ll_struct *ll = hu->priv;
-
-	BT_DBG("hu %p skb %p", hu, skb);
-
-	/* Prepend skb with frame type */
-	memcpy(skb_push(skb, 1), &hci_skb_pkt_type(skb), 1);
 
 	/* lock hcill state */
 	spin_lock_irqsave(&ll->hcill_lock, flags);
@@ -361,6 +391,18 @@ static int ll_enqueue(struct hci_uart *hu, struct sk_buff *skb)
 	return 0;
 }
 
+/* Enqueue frame for transmittion (padding, crc, etc) */
+/* may be called from two simultaneous tasklets */
+static int ll_enqueue(struct hci_uart *hu, struct sk_buff *skb)
+{
+	BT_DBG("hu %p skb %p", hu, skb);
+
+	/* Prepend skb with frame type */
+	memcpy(skb_push(skb, 1), &hci_skb_pkt_type(skb), 1);
+
+	return ll_enqueue_prefixed(hu, skb);
+}
+
 static int ll_recv_frame(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct hci_uart *hu = hci_get_drvdata(hdev);
@@ -389,6 +431,32 @@ static int ll_recv_frame(struct hci_dev *hdev, struct sk_buff *skb)
 	kfree_skb(skb);
 	return 0;
 }
+
+static int ll_recv_radio(struct hci_dev *hdev, struct sk_buff *skb)
+{
+	struct hci_uart *hu = hci_get_drvdata(hdev);
+	struct serdev_device *serdev = hu->serdev;
+	struct ll_device *lldev = serdev_device_get_drvdata(serdev);
+
+	if (!lldev->fm_handler) {
+		kfree_skb(skb);
+		return -EINVAL;
+	}
+
+	/* Prepend skb with frame type */
+	memcpy(skb_push(skb, 1), &hci_skb_pkt_type(skb), 1);
+
+	lldev->fm_handler(lldev->fm_drvdata, skb);
+
+	return 0;
+}
+
+#define LL_RECV_FM_RADIO \
+	.type = HCILL_FM_RADIO, \
+	.hlen = 1, \
+	.loff = 0, \
+	.lsize = 1, \
+	.maxlen = 0xff
 
 #define LL_RECV_SLEEP_IND \
 	.type = HCILL_GO_TO_SLEEP_IND, \
@@ -422,6 +490,7 @@ static const struct h4_recv_pkt ll_recv_pkts[] = {
 	{ H4_RECV_ACL,       .recv = hci_recv_frame },
 	{ H4_RECV_SCO,       .recv = hci_recv_frame },
 	{ H4_RECV_EVENT,     .recv = hci_recv_frame },
+	{ LL_RECV_FM_RADIO,  .recv = ll_recv_radio },
 	{ LL_RECV_SLEEP_IND, .recv = ll_recv_frame  },
 	{ LL_RECV_SLEEP_ACK, .recv = ll_recv_frame  },
 	{ LL_RECV_WAKE_IND,  .recv = ll_recv_frame  },
@@ -669,10 +738,40 @@ static int ll_setup(struct hci_uart *hu)
 		}
 	}
 
+	/* We intentionally ignore failures and proceed without FM device */
+	ll_register_fm(lldev);
+
 	return 0;
 }
 
 static const struct hci_uart_proto llp;
+
+void hci_ti_set_fm_handler(struct device *dev, void (*recv_handler) (void *, struct sk_buff *), void *drvdata)
+{
+	struct serdev_device *serdev = to_serdev_device(dev);
+	struct ll_device *lldev = serdev_device_get_drvdata(serdev);
+
+	lldev->fm_drvdata = drvdata;
+	lldev->fm_handler = recv_handler;
+}
+EXPORT_SYMBOL_GPL(hci_ti_set_fm_handler);
+
+int hci_ti_fm_send(struct device *dev, struct sk_buff *skb)
+{
+	struct serdev_device *serdev = to_serdev_device(dev);
+	struct ll_device *lldev = serdev_device_get_drvdata(serdev);
+	struct hci_uart *hu = &lldev->hu;
+	int ret;
+
+	hci_skb_pkt_type(skb) = HCILL_FM_RADIO;
+	ret = ll_enqueue_prefixed(hu, skb);
+
+	if (!ret)
+		hci_uart_tx_wakeup(hu);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(hci_ti_fm_send);
 
 static int hci_ti_probe(struct serdev_device *serdev)
 {
