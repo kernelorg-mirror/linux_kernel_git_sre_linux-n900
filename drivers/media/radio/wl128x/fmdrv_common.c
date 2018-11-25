@@ -1622,7 +1622,7 @@ static int __init fm_drv_init(void)
 	struct fmdev *fmdev = NULL;
 	int ret = -ENOMEM;
 
-	fmdbg("FM driver version %s\n", FM_DRV_VERSION);
+	fmdbg("FM driver\n");
 
 	fmdev = kzalloc(sizeof(struct fmdev), GFP_KERNEL);
 	if (NULL == fmdev) {
@@ -1671,6 +1671,5 @@ module_exit(fm_drv_exit);
 
 /* ------------- Module Info ------------- */
 MODULE_AUTHOR("Manjunatha Halli <manjunatha_halli@ti.com>");
-MODULE_DESCRIPTION("FM Driver for TI's Connectivity chip. " FM_DRV_VERSION);
-MODULE_VERSION(FM_DRV_VERSION);
+MODULE_DESCRIPTION("FM Driver for TI's Connectivity chip");
 MODULE_LICENSE("GPL");
