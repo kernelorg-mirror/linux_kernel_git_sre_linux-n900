@@ -192,7 +192,7 @@ static inline void fm_irq_timeout_stage(struct fmdev *fmdev, u8 stage)
 
 #ifdef FM_DUMP_TXRX_PKT
  /* To dump outgoing FM Channel-8 packets */
-inline void dump_tx_skb_data(struct sk_buff *skb)
+static void dump_tx_skb_data(struct sk_buff *skb)
 {
 	int len, len_org;
 	u8 index;
@@ -217,7 +217,7 @@ inline void dump_tx_skb_data(struct sk_buff *skb)
 }
 
  /* To dump incoming FM Channel-8 packets */
-inline void dump_rx_skb_data(struct sk_buff *skb)
+static void dump_rx_skb_data(struct sk_buff *skb)
 {
 	int len, len_org;
 	u8 index;
@@ -225,7 +225,7 @@ inline void dump_rx_skb_data(struct sk_buff *skb)
 
 	evt_hdr = (struct fm_event_msg_hdr *)skb->data;
 	printk(KERN_INFO ">> hdr:%02x len:%02x sts:%02x numhci:%02x opcode:%02x type:%s dlen:%02x",
-	       evt_hdr->hdr, evt_hdr->len,
+	       evt_hdr->header, evt_hdr->len,
 	       evt_hdr->status, evt_hdr->num_fm_hci_cmds, evt_hdr->op,
 	       (evt_hdr->rd_wr) ? "RD" : "WR", evt_hdr->dlen);
 
@@ -240,6 +240,9 @@ inline void dump_rx_skb_data(struct sk_buff *skb)
 	}
 	printk(KERN_CONT "\n");
 }
+#else
+static void dump_tx_skb_data(struct sk_buff *skb) {}
+static void dump_rx_skb_data(struct sk_buff *skb) {}
 #endif
 
 void fmc_update_region_info(struct fmdev *fmdev, u8 region_to_set)
@@ -366,6 +369,7 @@ static void send_tasklet(unsigned long arg)
 	fmdev->resp_comp = fm_cb(skb)->completion;
 
 	/* Write FM packet to ST driver */
+	dump_tx_skb_data(skb);
 	len = hci_ti_fm_send(fmdev->dev->parent, skb);
 	if (len < 0) {
 		kfree_skb(skb);
@@ -1439,6 +1443,8 @@ int fmc_get_mode(struct fmdev *fmdev, u8 *fmmode)
 static void fm_st_receive(void *arg, struct sk_buff *skb)
 {
 	struct fmdev *fmdev = (struct fmdev *) arg;
+
+	dump_rx_skb_data(skb);
 
 	skb_queue_tail(&fmdev->rx_q, skb);
 	tasklet_schedule(&fmdev->rx_task);
