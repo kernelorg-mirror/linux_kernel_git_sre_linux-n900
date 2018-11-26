@@ -12,7 +12,7 @@ config SND_OMAP_SOC_DMIC
 	tristate
 
 config SND_OMAP_SOC_MCBSP
-	tristate
+	tristate "SoC Audio for Texas Instruments chips (McBSP DAI)"
 
 config SND_OMAP_SOC_MCPDM
 	tristate
