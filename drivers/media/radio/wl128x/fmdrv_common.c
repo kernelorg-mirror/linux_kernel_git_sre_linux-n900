@@ -1226,7 +1226,8 @@ static int fm_power_down(struct fmdev *fmdev)
 	if (ret < 0)
 		return ret;
 
-	return fmc_release(fmdev);
+	fmc_release(fmdev);
+	return 0;
 }
 
 /* Reads init command from FM firmware file and loads to the chip */
@@ -1311,7 +1312,7 @@ static int fm_power_up(struct fmdev *fmdev, u8 mode)
 {
 	u16 payload;
 	__be16 asic_id, asic_ver;
-	int resp_len, ret;
+	int resp_len, ret = 0;
 	u8 fw_name[50];
 
 	if (mode >= FM_MODE_ENTRY_MAX) {
@@ -1323,11 +1324,7 @@ static int fm_power_up(struct fmdev *fmdev, u8 mode)
 	 * Initialize FM common module. FM GPIO toggling is
 	 * taken care in Shared Transport driver.
 	 */
-	ret = fmc_prepare(fmdev);
-	if (ret < 0) {
-		fmerr("Unable to prepare FM Common\n");
-		return ret;
-	}
+	fmc_prepare(fmdev);
 
 	payload = FM_ENABLE;
 	if (fmc_send_cmd(fmdev, FM_POWER_MODE, REG_WR, &payload,
@@ -1367,7 +1364,8 @@ static int fm_power_up(struct fmdev *fmdev, u8 mode)
 	} else
 		return ret;
 rel:
-	return fmc_release(fmdev);
+	fmc_release(fmdev);
+	return ret;
 }
 
 /* Set FM Modes(TX, RX, OFF) */
@@ -1454,13 +1452,11 @@ static void fm_st_receive(void *arg, struct sk_buff *skb)
  * This function will be called from FM V4L2 open function.
  * Register with ST driver and initialize driver data.
  */
-int fmc_prepare(struct fmdev *fmdev)
+void fmc_prepare(struct fmdev *fmdev)
 {
-	int ret;
-
 	if (test_bit(FM_CORE_READY, &fmdev->flag)) {
 		fmdbg("FM Core is already up\n");
-		return 0;
+		return;
 	}
 
 	hci_ti_set_fm_handler(fmdev->dev->parent, fm_st_receive, fmdev);
@@ -1500,19 +1496,17 @@ int fmc_prepare(struct fmdev *fmdev)
 
 	fm_rx_reset_station_info(fmdev);
 	set_bit(FM_CORE_READY, &fmdev->flag);
-
-	return ret;
 }
 
 /*
  * This function will be called from FM V4L2 release function.
  * Unregister from ST driver.
  */
-int fmc_release(struct fmdev *fmdev)
+void fmc_release(struct fmdev *fmdev)
 {
 	if (!test_bit(FM_CORE_READY, &fmdev->flag)) {
 		fmdbg("FM Core is already down\n");
-		return 0;
+		return;
 	}
 	/* Service pending read */
 	wake_up_interruptible(&fmdev->rx.rds.read_queue);
@@ -1529,7 +1523,6 @@ int fmc_release(struct fmdev *fmdev)
 	hci_ti_set_fm_handler(fmdev->dev->parent, NULL, NULL);
 
 	clear_bit(FM_CORE_READY, &fmdev->flag);
-	return 0;
 }
 
 static int wl128x_fm_probe(struct platform_device *pdev)

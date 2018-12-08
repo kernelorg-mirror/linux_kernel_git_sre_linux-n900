@@ -133,11 +133,7 @@ static int fm_v4l2_fops_open(struct file *file)
 
 	if (mutex_lock_interruptible(&fmdev->mutex))
 		return -ERESTARTSYS;
-	ret = fmc_prepare(fmdev);
-	if (ret < 0) {
-		fmerr("Unable to prepare FM CORE\n");
-		goto open_unlock;
-	}
+	fmc_prepare(fmdev);
 
 	fmdbg("Load FM RX firmware..\n");
 
@@ -171,11 +167,7 @@ static int fm_v4l2_fops_release(struct file *file)
 		goto release_unlock;
 	}
 
-	ret = fmc_release(fmdev);
-	if (ret < 0) {
-		fmerr("FM CORE release failed\n");
-		goto release_unlock;
-	}
+	fmc_release(fmdev);
 	fmdev->radio_disconnected = 0;
 
 release_unlock:

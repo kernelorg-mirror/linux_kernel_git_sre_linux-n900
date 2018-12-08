@@ -364,8 +364,8 @@ struct fm_event_msg_hdr {
 #define FM_TX_ANT_IMP_500		2
 
 /* Functions exported by FM common sub-module */
-int fmc_prepare(struct fmdev *);
-int fmc_release(struct fmdev *);
+void fmc_prepare(struct fmdev *);
+void fmc_release(struct fmdev *);
 
 void fmc_update_region_info(struct fmdev *, u8);
 int fmc_send_cmd(struct fmdev *, u8, u16,
