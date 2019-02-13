@@ -94,6 +94,7 @@ config OMAP2_DSS_SDI
 
 config OMAP2_DSS_DSI
 	bool "DSI support"
+	select DRM_MIPI_DSI
         default n
 	help
 	  MIPI DSI (Display Serial Interface) support.
