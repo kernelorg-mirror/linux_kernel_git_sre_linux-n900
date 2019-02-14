@@ -404,6 +404,9 @@
 				clocks = <&l3_dss_clkctrl OMAP4_DSS_CORE_CLKCTRL 8>,
 					 <&l3_dss_clkctrl OMAP4_DSS_CORE_CLKCTRL 10>;
 				clock-names = "fck", "sys_clk";
+
+				#address-cells = <1>;
+				#size-cells = <0>;
 			};
 
 			dsi2: encoder@58005000 {
@@ -418,6 +421,9 @@
 				clocks = <&l3_dss_clkctrl OMAP4_DSS_CORE_CLKCTRL 8>,
 					 <&l3_dss_clkctrl OMAP4_DSS_CORE_CLKCTRL 10>;
 				clock-names = "fck", "sys_clk";
+
+				#address-cells = <1>;
+				#size-cells = <0>;
 			};
 
 			hdmi: encoder@58006000 {
