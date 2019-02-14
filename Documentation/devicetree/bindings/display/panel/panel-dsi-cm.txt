@@ -3,6 +3,7 @@ Generic MIPI DSI Command Mode Panel
 
 Required properties:
 - compatible: "panel-dsi-cm"
+- reg: DSI channel number
 
 Optional properties:
 - label: a symbolic name for the panel
@@ -15,9 +16,10 @@ Required nodes:
 Example
 -------
 
-lcd0: display {
+lcd0: panel@0 {
 	compatible = "tpo,taal", "panel-dsi-cm";
 	label = "lcd0";
+	reg = <0>;
 
 	reset-gpios = <&gpio4 6 GPIO_ACTIVE_HIGH>;
 
