@@ -21,6 +21,8 @@ struct mipi_dsi_device;
 #define MIPI_DSI_MSG_REQ_ACK	BIT(0)
 /* use Low Power Mode to transmit message */
 #define MIPI_DSI_MSG_USE_LPM	BIT(1)
+/* do not wait until message has been sent out */
+#define MIPI_DSI_MSG_NO_SYNC	BIT(2)
 
 /**
  * struct mipi_dsi_msg - read/write DSI buffer
