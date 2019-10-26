@@ -38,6 +38,7 @@
 #include <video/mipi_display.h>
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_panel.h>
+#include <drm/drm_probe_helper.h>
 
 #include "omapdss.h"
 #include "dss.h"
@@ -440,6 +441,9 @@ struct dsi_data {
 	struct omap_dss_dsi_videomode_timings vm_timings;
 
 	struct omap_dss_device output;
+
+	struct drm_device *drm_dev;
+	struct drm_connector *connector;
 };
 
 struct dsi_packet_sent_handler_data {
@@ -5144,6 +5148,7 @@ int omap_dsi_host_attach(struct mipi_dsi_host *host,
 			 struct mipi_dsi_device *client)
 {
 	struct dsi_data *dsi = host_to_omap(host);
+	struct omap_dss_device *dssdev = &dsi->output;
 	unsigned int channel = client->channel;
 	struct drm_panel *panel;
 	int r;
@@ -5189,7 +5194,18 @@ int omap_dsi_host_attach(struct mipi_dsi_host *host,
 
 	dsi->ulps_auto_idle = !!(client->mode_flags & MIPI_DSI_MODE_ULPS_IDLE);
 
+	dssdev->panel = panel;
+
+	if (dsi->connector) {
+		dsi->connector->status = connector_status_connected;
+		drm_panel_attach(panel, dsi->connector);
+	}
+
 	dsi_bus_unlock(dsi);
+
+	if (dsi->drm_dev && dsi->drm_dev->mode_config.poll_enabled)
+		drm_kms_helper_hotplug_event(dsi->drm_dev);
+
 	return 0;
 }
 
@@ -5197,6 +5213,7 @@ int omap_dsi_host_detach(struct mipi_dsi_host *host,
 			 struct mipi_dsi_device *client)
 {
 	struct dsi_data *dsi = host_to_omap(host);
+	struct omap_dss_device *dssdev = &dsi->output;
 	unsigned int channel = client->channel;
 
 	if (channel > 3)
@@ -5205,8 +5222,28 @@ int omap_dsi_host_detach(struct mipi_dsi_host *host,
 	if (dsi->vc[channel].dest != client)
 		return -EINVAL;
 
+	if (!dssdev->panel)
+		return -EINVAL;
+
+	dsi_bus_lock(dsi);
+
+	/* HACK: steal connector and drm_dev from panel */
+	dsi->connector = dssdev->panel->connector;
+	dsi->drm_dev = dssdev->panel->drm;
+
+	if (dsi->connector) {
+		dsi->connector->status = connector_status_disconnected;
+		drm_panel_detach(dssdev->panel);
+		dssdev->panel = NULL;
+	}
+
 	omap_dsi_unregister_te_irq(dsi);
 	dsi->vc[channel].dest = NULL;
+	dsi_bus_unlock(dsi);
+
+	if (dsi->drm_dev && dsi->drm_dev->mode_config.poll_enabled)
+		drm_kms_helper_hotplug_event(dsi->drm_dev);
+
 	return 0;
 }
 
@@ -5374,12 +5411,20 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 	dsi->debugfs.clks = dss_debugfs_create_file(dss, name,
 						    dsi_dump_dsi_clocks, dsi);
 
+	r = mipi_dsi_host_register(&dsi->host);
+	if (r < 0) {
+		dev_err(dev, "failed to register DSI host: %d\n", r);
+		return r;
+	}
+
 	return 0;
 }
 
 static void dsi_unbind(struct device *dev, struct device *master, void *data)
 {
 	struct dsi_data *dsi = dev_get_drvdata(dev);
+
+	mipi_dsi_host_unregister(&dsi->host);
 
 	dss_debugfs_remove_file(dsi->debugfs.clks);
 	dss_debugfs_remove_file(dsi->debugfs.irqs);
@@ -5402,7 +5447,6 @@ static const struct component_ops dsi_component_ops = {
 static int dsi_init_output(struct dsi_data *dsi)
 {
 	struct omap_dss_device *out = &dsi->output;
-	int r;
 
 	out->dev = dsi->dev;
 	out->id = dsi->module_id == 0 ?
@@ -5417,10 +5461,6 @@ static int dsi_init_output(struct dsi_data *dsi)
 	out->bus_flags = DRM_BUS_FLAG_PIXDATA_DRIVE_POSEDGE
 		       | DRM_BUS_FLAG_DE_HIGH
 		       | DRM_BUS_FLAG_SYNC_DRIVE_NEGEDGE;
-
-	r = omapdss_device_init_output(out);
-	if (r < 0)
-		return r;
 
 	omapdss_device_register(out);
 
@@ -5688,15 +5728,9 @@ static int dsi_probe(struct platform_device *pdev)
 	dsi->host.ops = &omap_dsi_host_ops;
 	dsi->host.dev = &pdev->dev;
 
-	r = mipi_dsi_host_register(&dsi->host);
-	if (r < 0) {
-		dev_err(&pdev->dev, "failed to register DSI host: %d\n", r);
-		goto err_pm_disable;
-	}
-
 	r = dsi_init_output(dsi);
 	if (r)
-		goto err_dsi_host_unregister;
+		goto err_pm_disable;
 
 	r = dsi_probe_of(dsi);
 	if (r) {
@@ -5712,8 +5746,6 @@ static int dsi_probe(struct platform_device *pdev)
 
 err_uninit_output:
 	dsi_uninit_output(dsi);
-err_dsi_host_unregister:
-	mipi_dsi_host_unregister(&dsi->host);
 err_pm_disable:
 	pm_runtime_disable(dev);
 	return r;
@@ -5726,8 +5758,6 @@ static int dsi_remove(struct platform_device *pdev)
 	component_del(&pdev->dev, &dsi_component_ops);
 
 	dsi_uninit_output(dsi);
-
-	mipi_dsi_host_unregister(&dsi->host);
 
 	pm_runtime_disable(&pdev->dev);
 
@@ -5775,6 +5805,5 @@ struct platform_driver omap_dsihw_driver = {
 		.name   = "omapdss_dsi",
 		.pm	= &dsi_pm_ops,
 		.of_match_table = dsi_of_match,
-		.suppress_bind_attrs = true,
 	},
 };
