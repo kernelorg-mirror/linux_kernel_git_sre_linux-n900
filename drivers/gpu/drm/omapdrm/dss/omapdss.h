@@ -554,4 +554,7 @@ const struct dispc_ops *dispc_get_ops(struct dss_device *dss);
 bool omapdss_stack_is_ready(void);
 void omapdss_gather_components(struct device *dev);
 
+int dss_bind_components(struct dss_device *dss, struct drm_device *drm_dev);
+void dss_unbind_components(struct dss_device *dss, struct drm_device *drm_dev);
+
 #endif /* __OMAP_DRM_DSS_H */

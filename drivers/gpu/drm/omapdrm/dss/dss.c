@@ -1292,26 +1292,35 @@ static const struct soc_device_attribute dss_soc_devices[] = {
 	{ /* sentinel */ }
 };
 
+int dss_bind_components(struct dss_device *dss, struct drm_device *drm_dev)
+{
+	struct platform_device *pdev = dss->pdev;
+
+	return component_bind_all(&pdev->dev, drm_dev);
+}
+EXPORT_SYMBOL(dss_bind_components);
+
+void dss_unbind_components(struct dss_device *dss, struct drm_device *drm_dev)
+{
+	struct platform_device *pdev = dss->pdev;
+
+	component_unbind_all(&pdev->dev, drm_dev);
+}
+EXPORT_SYMBOL(dss_unbind_components);
+
 static int dss_bind(struct device *dev)
 {
 	struct dss_device *dss = dev_get_drvdata(dev);
 	struct platform_device *drm_pdev;
 	struct dss_pdata pdata;
-	int r;
-
-	r = component_bind_all(dev, NULL);
-	if (r)
-		return r;
 
 	pm_set_vt_switch(0);
 
 	pdata.dss = dss;
 	drm_pdev = platform_device_register_data(NULL, "omapdrm", 0,
 						 &pdata, sizeof(pdata));
-	if (IS_ERR(drm_pdev)) {
-		component_unbind_all(dev, NULL);
+	if (IS_ERR(drm_pdev))
 		return PTR_ERR(drm_pdev);
-	}
 
 	dss->drm_pdev = drm_pdev;
 
@@ -1323,8 +1332,6 @@ static void dss_unbind(struct device *dev)
 	struct dss_device *dss = dev_get_drvdata(dev);
 
 	platform_device_unregister(dss->drm_pdev);
-
-	component_unbind_all(dev, NULL);
 }
 
 static const struct component_master_ops dss_component_ops = {
