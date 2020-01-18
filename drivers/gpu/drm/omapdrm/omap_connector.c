@@ -70,6 +70,10 @@ void omap_connector_enable_hpd(struct drm_connector *connector)
 	struct omap_connector *omap_connector = to_omap_connector(connector);
 	struct omap_dss_device *hpd = omap_connector->hpd;
 
+	/* DSI is connector is not omap_connector */
+	if (connector->connector_type == DRM_MODE_CONNECTOR_DSI)
+		return;
+
 	if (hpd)
 		hpd->ops->register_hpd_cb(hpd, omap_connector_hpd_cb,
 					  omap_connector);
@@ -79,6 +83,10 @@ void omap_connector_disable_hpd(struct drm_connector *connector)
 {
 	struct omap_connector *omap_connector = to_omap_connector(connector);
 	struct omap_dss_device *hpd = omap_connector->hpd;
+
+	/* DSI is connector is not omap_connector */
+	if (connector->connector_type == DRM_MODE_CONNECTOR_DSI)
+		return;
 
 	if (hpd)
 		hpd->ops->unregister_hpd_cb(hpd);
@@ -126,7 +134,6 @@ static enum drm_connector_status omap_connector_detect(
 		switch (connector->connector_type) {
 		case DRM_MODE_CONNECTOR_DPI:
 		case DRM_MODE_CONNECTOR_LVDS:
-		case DRM_MODE_CONNECTOR_DSI:
 			status = connector_status_connected;
 			break;
 		default:
@@ -312,8 +319,6 @@ static int omap_connector_get_type(struct omap_dss_device *output)
 		return DRM_MODE_CONNECTOR_HDMIA;
 	case OMAP_DISPLAY_TYPE_DVI:
 		return DRM_MODE_CONNECTOR_DVID;
-	case OMAP_DISPLAY_TYPE_DSI:
-		return DRM_MODE_CONNECTOR_DSI;
 	case OMAP_DISPLAY_TYPE_DPI:
 	case OMAP_DISPLAY_TYPE_DBI:
 		return DRM_MODE_CONNECTOR_DPI;
