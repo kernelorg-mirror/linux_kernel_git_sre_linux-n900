@@ -5383,6 +5383,11 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 	dsi->drm_dev = drm_dev;
 
 	/* drm->connector = TODO */
+	/* This needs to be restructured, so that the drm_encoder is registered
+	 * and initialized here. Then we can also register the connector / bridge
+	 * from here. This makes it possible to easily de/re-attach panels and
+	 * cleans up the driver structure by removing the DSS abstraction layer.
+	 */
 
 	dsi_init_pll_data(dss, dsi);
 
