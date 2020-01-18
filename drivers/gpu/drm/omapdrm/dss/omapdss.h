@@ -380,12 +380,9 @@ struct omap_dss_device {
 	unsigned int of_ports;
 };
 
-struct dss_device *omapdss_get_dss(void);
-void omapdss_set_dss(struct dss_device *dss);
-static inline bool omapdss_is_initialized(void)
-{
-	return !!omapdss_get_dss();
-}
+struct dss_pdata {
+	struct dss_device *dss;
+};
 
 void omapdss_display_init(struct omap_dss_device *dssdev);
 struct omap_dss_device *omapdss_display_get(struct omap_dss_device *output);
