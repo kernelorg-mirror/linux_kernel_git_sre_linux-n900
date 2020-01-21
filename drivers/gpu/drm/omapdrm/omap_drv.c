@@ -291,15 +291,21 @@ static int omap_modeset_init(struct drm_device *dev)
 		struct omap_drm_pipeline *pipe = &priv->pipes[i];
 		int id;
 
-		pipe->encoder = omap_encoder_init(dev, pipe->output);
-		if (!pipe->encoder)
-			return -ENOMEM;
+		if (pipe->output->ops->get_encoder) {
+			pipe->encoder = pipe->output->ops->get_encoder(pipe->output);
+			if (!pipe->encoder)
+				return -ENODEV;
+		} else {
+			pipe->encoder = omap_encoder_init(dev, pipe->output);
+			if (!pipe->encoder)
+				return -ENOMEM;
 
-		if (pipe->output->bridge) {
-			ret = drm_bridge_attach(pipe->encoder,
-						pipe->output->bridge, NULL);
-			if (ret < 0)
-				return ret;
+			if (pipe->output->bridge) {
+				ret = drm_bridge_attach(pipe->encoder,
+							pipe->output->bridge, NULL);
+				if (ret < 0)
+					return ret;
+			}
 		}
 
 		id = omap_display_id(pipe->output);
@@ -330,7 +336,13 @@ static int omap_modeset_init(struct drm_device *dev)
 		struct drm_encoder *encoder = pipe->encoder;
 		struct drm_crtc *crtc;
 
-		if (!pipe->output->bridge) {
+		if (!pipe->connector && pipe->output->ops->get_connector) {
+			pipe->connector = pipe->output->ops->get_connector(pipe->output);
+			if (!pipe->connector)
+				return -ENODEV;
+		}
+
+		if (!pipe->connector && !pipe->output->bridge) {
 			pipe->connector = omap_connector_init(dev, pipe->output,
 							      encoder);
 			if (!pipe->connector)

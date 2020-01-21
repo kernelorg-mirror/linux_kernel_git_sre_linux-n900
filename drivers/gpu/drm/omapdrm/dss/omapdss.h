@@ -58,6 +58,7 @@ struct snd_aes_iec958;
 struct snd_cea_861_aud_if;
 struct hdmi_avi_infoframe;
 struct drm_connector;
+struct drm_encoder;
 
 enum omap_display_type {
 	OMAP_DISPLAY_TYPE_NONE		= 0,
@@ -287,6 +288,9 @@ struct omapdss_dsi_ops {
 };
 
 struct omap_dss_device_ops {
+	struct drm_encoder* (*get_encoder)(struct omap_dss_device *dssdev);
+	struct drm_connector* (*get_connector)(struct omap_dss_device *dssdev);
+
 	int (*connect)(struct omap_dss_device *dssdev,
 			struct omap_dss_device *dst);
 	void (*disconnect)(struct omap_dss_device *dssdev,

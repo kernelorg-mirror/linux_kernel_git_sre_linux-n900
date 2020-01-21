@@ -39,6 +39,9 @@
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_panel.h>
 #include <drm/drm_probe_helper.h>
+#include <drm/drm_encoder.h>
+#include <drm/drm_modeset_helper_vtables.h>
+#include <drm/drm_atomic_state_helper.h>
 
 #include "omapdss.h"
 #include "dss.h"
@@ -333,6 +336,9 @@ struct dsi_of_data {
 };
 
 struct dsi_data {
+	struct drm_encoder encoder;
+	struct drm_connector connector;
+
 	struct device *dev;
 	void __iomem *proto_base;
 	void __iomem *phy_base;
@@ -443,8 +449,10 @@ struct dsi_data {
 	struct omap_dss_device output;
 
 	struct drm_device *drm_dev;
-	struct drm_connector *connector;
 };
+
+#define to_dsi_data_encoder(x) container_of(x, struct dsi_data, encoder)
+#define to_dsi_data_connector(c) container_of(c, struct dsi_data, connector)
 
 struct dsi_packet_sent_handler_data {
 	struct dsi_data *dsi;
@@ -5049,6 +5057,18 @@ static void dsi_disconnect(struct omap_dss_device *src,
 	omapdss_device_disconnect(dst, dst->next);
 }
 
+static struct drm_encoder* dsi_get_encoder(struct omap_dss_device *dssdev)
+{
+	struct dsi_data *dsi = to_dsi_data(dssdev);
+	return &dsi->encoder;
+}
+
+static struct drm_connector* dsi_get_connector(struct omap_dss_device *dssdev)
+{
+	struct dsi_data *dsi = to_dsi_data(dssdev);
+	return &dsi->connector;
+}
+
 static const struct omap_dss_device_ops dsi_ops = {
 	.connect = dsi_connect,
 	.disconnect = dsi_disconnect,
@@ -5057,6 +5077,9 @@ static const struct omap_dss_device_ops dsi_ops = {
 
 	.check_timings = dsi_check_timings,
 	.set_timings = dsi_set_timings,
+
+	.get_encoder = dsi_get_encoder,
+	.get_connector = dsi_get_connector,
 
 	.dsi = {
 		.update = dsi_update_all,
@@ -5195,10 +5218,8 @@ int omap_dsi_host_attach(struct mipi_dsi_host *host,
 
 	dssdev->panel = panel;
 
-	if (dsi->connector) {
-		dsi->connector->status = connector_status_connected;
-		drm_panel_attach(panel, dsi->connector);
-	}
+	dsi->connector.status = connector_status_connected;
+	drm_panel_attach(panel, &dsi->connector);
 
 	dsi_bus_unlock(dsi);
 
@@ -5226,11 +5247,9 @@ int omap_dsi_host_detach(struct mipi_dsi_host *host,
 
 	dsi_bus_lock(dsi);
 
-	if (dsi->connector) {
-		dsi->connector->status = connector_status_disconnected;
-		drm_panel_detach(dssdev->panel);
-		dssdev->panel = NULL;
-	}
+	dsi->connector.status = connector_status_disconnected;
+	drm_panel_detach(dssdev->panel);
+	dssdev->panel = NULL;
 
 	omap_dsi_unregister_te_irq(dsi);
 	dsi->vc[channel].dest = NULL;
@@ -5366,6 +5385,126 @@ static int dsi_init_pll_data(struct dss_device *dss, struct dsi_data *dsi)
 	return 0;
 }
 
+static void omap_dsi_encoder_mode_set(struct drm_encoder *encoder,
+				      struct drm_display_mode *mode,
+				      struct drm_display_mode *adjusted_mode)
+{
+	struct dsi_data *dsi = to_dsi_data_encoder(encoder);
+	struct omap_dss_device *dssdev = &dsi->output;
+	struct videomode vm = { 0 };
+
+	drm_display_mode_to_videomode(adjusted_mode, &vm);
+	dss_mgr_set_timings(dssdev, &vm);
+
+	dsi_set_timings(dssdev, adjusted_mode);
+}
+
+
+static void omap_dsi_encoder_disable(struct drm_encoder *encoder)
+{
+	struct dsi_data *dsi = to_dsi_data_encoder(encoder);
+	struct omap_dss_device *dssdev = &dsi->output;
+	struct drm_device *dev = encoder->dev;
+
+	dev_dbg(dev->dev, "disable(%s)\n", dssdev->name);
+
+	/* Disable the panel if present. */
+	if (dssdev->panel) {
+		drm_panel_disable(dssdev->panel);
+		drm_panel_unprepare(dssdev->panel);
+	}
+
+	dsi_disable_video_outputs(dssdev);
+	dssdev->state = OMAP_DSS_DISPLAY_DISABLED;
+}
+
+static void omap_dsi_encoder_enable(struct drm_encoder *encoder)
+{
+	struct dsi_data *dsi = to_dsi_data_encoder(encoder);
+	struct omap_dss_device *dssdev = &dsi->output;
+	struct drm_device *dev = encoder->dev;
+
+	dev_dbg(dev->dev, "enable(%s)\n", dssdev->name);
+
+	dsi_enable_video_outputs(dssdev);
+	dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
+
+	/* Enable the panel if present. */
+	if (dssdev->panel) {
+		drm_panel_prepare(dssdev->panel);
+		drm_panel_enable(dssdev->panel);
+	}
+}
+
+static int omap_dsi_encoder_atomic_check(struct drm_encoder *encoder,
+					 struct drm_crtc_state *crtc_state,
+					 struct drm_connector_state *conn_state)
+{
+	struct dsi_data *dsi = to_dsi_data_encoder(encoder);
+	struct omap_dss_device *dssdev = &dsi->output;
+	const struct drm_display_mode *mode = &crtc_state->mode;
+	struct drm_display_mode *adjusted_mode = &crtc_state->adjusted_mode;
+	int ret;
+
+	drm_mode_copy(adjusted_mode, mode);
+
+	ret = dsi_check_timings(dssdev, adjusted_mode);
+	if (ret) {
+		dev_err(encoder->dev->dev, "invalid timings: %d\n", ret);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static const struct drm_encoder_funcs omap_dsi_encoder_funcs = {
+	.destroy = drm_encoder_cleanup,
+};
+
+static const struct drm_encoder_helper_funcs omap_dsi_encoder_helper_funcs = {
+	.mode_set = omap_dsi_encoder_mode_set,
+	.disable = omap_dsi_encoder_disable,
+	.enable = omap_dsi_encoder_enable,
+	.atomic_check = omap_dsi_encoder_atomic_check,
+};
+
+static enum drm_connector_status
+omap_dsi_connector_detect(struct drm_connector *connector, bool force)
+{
+	return connector->status;
+}
+
+static void omap_dsi_connector_destroy(struct drm_connector *connector)
+{
+	drm_connector_unregister(connector);
+	drm_connector_cleanup(connector);
+	connector->dev = NULL;
+}
+
+static const struct drm_connector_funcs omap_dsi_connector_funcs = {
+	.reset = drm_atomic_helper_connector_reset,
+	.detect = omap_dsi_connector_detect,
+	.fill_modes = drm_helper_probe_single_connector_modes,
+	.destroy = omap_dsi_connector_destroy,
+	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
+	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+};
+
+static int omap_dsi_get_modes(struct drm_connector *connector)
+{
+	struct dsi_data *dsi = to_dsi_data_connector(connector);
+	struct omap_dss_device *dssdev = &dsi->output;
+
+	if (dssdev->panel)
+		return drm_panel_get_modes(dssdev->panel, connector);
+
+	return 0;
+}
+
+static const struct drm_connector_helper_funcs omap_dsi_connector_helper_funcs = {
+	.get_modes = omap_dsi_get_modes,
+};
+
 /* -----------------------------------------------------------------------------
  * Component Bind & Unbind
  */
@@ -5374,6 +5513,8 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 {
 	struct dss_device *dss = dss_get_device(master);
 	struct dsi_data *dsi = dev_get_drvdata(dev);
+	struct drm_encoder *encoder = &dsi->encoder;
+	struct drm_connector *connector = &dsi->connector;
 	struct drm_device *drm_dev = data;
 	char name[10];
 	u32 rev;
@@ -5381,6 +5522,28 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 
 	dsi->dss = dss;
 	dsi->drm_dev = drm_dev;
+
+	drm_encoder_init(drm_dev, encoder, &omap_dsi_encoder_funcs,
+			 DRM_MODE_ENCODER_DSI, NULL);
+	drm_encoder_helper_add(encoder, &omap_dsi_encoder_helper_funcs);
+
+	connector->polled = DRM_CONNECTOR_POLL_HPD;
+
+	r = drm_connector_init(drm_dev, connector, &omap_dsi_connector_funcs,
+			       DRM_MODE_CONNECTOR_DSI);
+	if (r) {
+		dev_err(dev, "Failed to initialize connector with drm\n");
+		return r;
+	}
+	connector->status = connector_status_disconnected;
+
+	drm_connector_helper_add(connector, &omap_dsi_connector_helper_funcs);
+	drm_connector_attach_encoder(connector, encoder);
+
+#if 0
+	if (!drm->registered)
+		return 0;
+#endif
 
 	/* drm->connector = TODO */
 	/* This needs to be restructured, so that the drm_encoder is registered
