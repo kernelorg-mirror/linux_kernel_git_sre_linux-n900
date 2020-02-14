@@ -237,13 +237,19 @@ static int omap_modeset_init(struct drm_device *dev)
 	int ret;
 	u32 plane_crtc_mask;
 
+#if 0
 	if (!omapdss_stack_is_ready())
 		return -EPROBE_DEFER;
+#endif
 
 	drm_mode_config_init(dev);
 
 	ret = omap_modeset_init_properties(dev);
 	if (ret < 0)
+		return ret;
+
+	ret = dss_bind_components(priv->dss, dev);
+	if (ret)
 		return ret;
 
 	/*
@@ -589,10 +595,6 @@ static int omapdrm_init(struct omap_drm_private *priv, struct device *dev)
 	priv->dispc = dispc_get_dispc(priv->dss);
 	priv->dispc_ops = dispc_get_ops(priv->dss);
 
-	ret = dss_bind_components(priv->dss, ddev);
-	if (ret)
-		goto err_ddev_deinit;
-
 	omap_crtc_pre_init(priv);
 
 	soc = soc_device_match(omapdrm_soc_devices);
@@ -652,9 +654,8 @@ err_gem_deinit:
 	omap_gem_deinit(ddev);
 	destroy_workqueue(priv->wq);
 	omap_disconnect_pipelines(ddev);
-	omap_crtc_pre_uninit(priv);
 	dss_unbind_components(priv->dss, ddev);
-err_ddev_deinit:
+	omap_crtc_pre_uninit(priv);
 	drm_dev_put(ddev);
 	return ret;
 }
@@ -682,9 +683,10 @@ static void omapdrm_cleanup(struct omap_drm_private *priv)
 	destroy_workqueue(priv->wq);
 
 	omap_disconnect_pipelines(ddev);
-	omap_crtc_pre_uninit(priv);
 
 	dss_unbind_components(priv->dss, ddev);
+
+	omap_crtc_pre_uninit(priv);
 
 	drm_dev_put(ddev);
 }

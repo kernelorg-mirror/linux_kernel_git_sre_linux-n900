@@ -5523,8 +5523,12 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 	dsi->dss = dss;
 	dsi->drm_dev = drm_dev;
 
-	drm_encoder_init(drm_dev, encoder, &omap_dsi_encoder_funcs,
+	r = drm_encoder_init(drm_dev, encoder, &omap_dsi_encoder_funcs,
 			 DRM_MODE_ENCODER_DSI, NULL);
+	if (r) {
+		dev_err(dev, "Failed to initialize encoder with drm\n");
+		return r;
+	}
 	drm_encoder_helper_add(encoder, &omap_dsi_encoder_helper_funcs);
 
 	connector->polled = DRM_CONNECTOR_POLL_HPD;
