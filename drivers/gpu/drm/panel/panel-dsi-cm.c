@@ -58,6 +58,7 @@ struct panel_drv_data {
 
 	int width_mm;
 	int height_mm;
+	enum drm_panel_orientation panel_orientation;
 
 	/* runtime variables */
 	bool enabled;
@@ -458,6 +459,7 @@ static int dsicm_get_modes(struct drm_panel *panel,
 
 	connector->display_info.width_mm = ddata->width_mm;
 	connector->display_info.height_mm = ddata->height_mm;
+	connector->display_info.panel_orientation = ddata->panel_orientation;
 
 	drm_mode_probed_add(connector, mode);
 
@@ -479,7 +481,7 @@ static int dsicm_probe_of(struct mipi_dsi_device *dsi)
 	struct panel_drv_data *ddata = mipi_dsi_get_drvdata(dsi);
 	struct display_timing timing;
 	struct videomode vm;
-	int err;
+	int err, rotation;
 
 	vm.hactive = 864;
 	vm.vactive = 480;
@@ -508,6 +510,26 @@ static int dsicm_probe_of(struct mipi_dsi_device *dsi)
 
 	ddata->height_mm = 0;
 	of_property_read_u32(node, "height-mm", &ddata->height_mm);
+
+	rotation = -1;
+	of_property_read_u32(node, "rotation", &rotation);
+	switch (rotation) {
+		case 0:
+			ddata->panel_orientation = DRM_MODE_PANEL_ORIENTATION_NORMAL;
+			break;
+		case 90:
+			ddata->panel_orientation = DRM_MODE_PANEL_ORIENTATION_RIGHT_UP;
+			break;
+		case 180:
+			ddata->panel_orientation = DRM_MODE_PANEL_ORIENTATION_BOTTOM_UP;
+			break;
+		case 270:
+			ddata->panel_orientation = DRM_MODE_PANEL_ORIENTATION_LEFT_UP;
+			break;
+		default:
+			ddata->panel_orientation = DRM_MODE_PANEL_ORIENTATION_UNKNOWN;
+			break;
+	}
 
 	ddata->supplies[0].supply = "vpnl";
 	ddata->supplies[1].supply = "vddi";
