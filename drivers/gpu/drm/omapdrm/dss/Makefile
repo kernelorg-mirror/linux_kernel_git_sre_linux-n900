@@ -1,10 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
-obj-$(CONFIG_OMAP_DSS_BASE) += omapdss-base.o
-omapdss-base-y := base.o display.o output.o
-
 obj-$(CONFIG_OMAP2_DSS) += omapdss.o
 # Core DSS files
-omapdss-y := dss.o dispc.o dispc_coefs.o \
+omapdss-y := base.o dss.o dispc.o display.o dispc_coefs.o output.o \
 	pll.o video-pll.o
 omapdss-$(CONFIG_OMAP2_DSS_DPI) += dpi.o
 omapdss-$(CONFIG_OMAP2_DSS_VENC) += venc.o
