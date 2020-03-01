@@ -5449,8 +5449,15 @@ static int dsi_init_output(struct dsi_data *dsi)
 		       | DRM_BUS_FLAG_DE_HIGH
 		       | DRM_BUS_FLAG_SYNC_DRIVE_NEGEDGE;
 
+	// TODO: this always returns -EPROBE_DEFER for modular build
+	// we should probably wait for omap_dsi_host_attach() being
+	// called before initializing the output. We do not want to
+	// -EPROBE_DEFER the encoder, since that removes the DSI host
+	// and thus the panel/bridge driver is no longer required.
+
 	r = omapdss_device_init_output(out, &dsi->bridge);
 	if (r < 0) {
+		dev_err(&pdev->dev, "failed to init DSI output: %d\n", r);
 		dsi_bridge_cleanup(dsi);
 		return r;
 	}
