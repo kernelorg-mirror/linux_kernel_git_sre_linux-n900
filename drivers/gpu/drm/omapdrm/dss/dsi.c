@@ -5145,6 +5145,13 @@ int omap_dsi_host_attach(struct mipi_dsi_host *host,
 
 	dsi->ulps_auto_idle = !!(client->mode_flags & MIPI_DSI_MODE_ULPS_IDLE);
 
+	r = omapdss_device_init_output(&dsi->output, &dsi->bridge);
+	if (r < 0) {
+		dev_err(dsi->dev, "failed to init DSI output: %d\n", r);
+		dsi_bus_unlock(dsi);
+		return r;
+	}
+
 	dsi_bus_unlock(dsi);
 	return 0;
 }
@@ -5431,7 +5438,6 @@ static void dsi_bridge_cleanup(struct dsi_data *dsi)
 static int dsi_init_output(struct dsi_data *dsi)
 {
 	struct omap_dss_device *out = &dsi->output;
-	int r;
 
 	dsi_bridge_init(dsi);
 
@@ -5448,19 +5454,6 @@ static int dsi_init_output(struct dsi_data *dsi)
 	out->bus_flags = DRM_BUS_FLAG_PIXDATA_DRIVE_POSEDGE
 		       | DRM_BUS_FLAG_DE_HIGH
 		       | DRM_BUS_FLAG_SYNC_DRIVE_NEGEDGE;
-
-	// TODO: this always returns -EPROBE_DEFER for modular build
-	// we should probably wait for omap_dsi_host_attach() being
-	// called before initializing the output. We do not want to
-	// -EPROBE_DEFER the encoder, since that removes the DSI host
-	// and thus the panel/bridge driver is no longer required.
-
-	r = omapdss_device_init_output(out, &dsi->bridge);
-	if (r < 0) {
-		dev_err(&pdev->dev, "failed to init DSI output: %d\n", r);
-		dsi_bridge_cleanup(dsi);
-		return r;
-	}
 
 	omapdss_device_register(out);
 
