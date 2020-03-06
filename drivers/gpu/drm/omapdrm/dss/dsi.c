@@ -35,9 +35,15 @@
 #include <linux/component.h>
 #include <linux/sys_soc.h>
 
+#include <drm/drm_atomic_helper.h>
 #include <drm/drm_bridge.h>
+#include <drm/drm_bridge_connector.h>
+#include <drm/drm_connector.h>
+#include <drm/drm_encoder.h>
+#include <drm/drm_fb_helper.h>
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_panel.h>
+#include <drm/drm_probe_helper.h>
 #include <video/mipi_display.h>
 
 #include "omapdss.h"
@@ -441,7 +447,10 @@ struct dsi_data {
 	struct omap_dss_dsi_videomode_timings vm_timings;
 
 	struct omap_dss_device output;
+	struct drm_device *drm_dev;
 	struct drm_bridge bridge;
+	struct drm_connector *connector;
+	struct drm_encoder encoder;
 };
 
 struct dsi_packet_sent_handler_data {
@@ -466,6 +475,12 @@ static inline struct dsi_data *host_to_omap(struct mipi_dsi_host *host)
 {
 	return container_of(host, struct dsi_data, host);
 }
+
+static inline struct dsi_data *encoder_to_omap(struct drm_encoder *encoder)
+{
+	return container_of(encoder, struct dsi_data, encoder);
+}
+
 
 static inline void dsi_write_reg(struct dsi_data *dsi,
 				 const struct dsi_reg idx, u32 val)
@@ -5091,6 +5106,40 @@ static void omap_dsi_unregister_te_irq(struct dsi_data *dsi)
 	}
 }
 
+int omap_dsi_create_bridge_connector(struct dsi_data *dsi)
+{
+	int r;
+
+	r = omapdss_device_init_output(&dsi->output, &dsi->bridge);
+	if (r < 0) {
+		dev_err(dsi->dev, "failed to init DSI output: %d\n", r);
+		return r;
+	}
+
+	r = drm_bridge_attach(&dsi->encoder, &dsi->bridge, NULL,
+			      DRM_BRIDGE_ATTACH_NO_CONNECTOR);
+	if (r < 0) {
+		dev_err(dsi->dev, "unable to attach bridge: %d\n", r);
+		return r;
+	}
+
+	dsi->connector = drm_bridge_connector_init(dsi->drm_dev, &dsi->encoder);
+	if (IS_ERR(dsi->connector)) {
+		dev_err(dsi->dev, "unable to create bridge connector\n");
+		return PTR_ERR(dsi->connector);
+	}
+	drm_connector_attach_encoder(dsi->connector, &dsi->encoder);
+
+	if (!dsi->drm_dev->registered)
+		return 0;
+
+	dsi->connector->funcs->reset(dsi->connector);
+	drm_fb_helper_add_one_connector(dsi->drm_dev->fb_helper, dsi->connector);
+	drm_connector_register(dsi->connector);
+
+	return 0;
+}
+
 int omap_dsi_host_attach(struct mipi_dsi_host *host,
 			 struct mipi_dsi_device *client)
 {
@@ -5145,14 +5194,29 @@ int omap_dsi_host_attach(struct mipi_dsi_host *host,
 
 	dsi->ulps_auto_idle = !!(client->mode_flags & MIPI_DSI_MODE_ULPS_IDLE);
 
-	r = omapdss_device_init_output(&dsi->output, &dsi->bridge);
+	r = omap_dsi_create_bridge_connector(dsi);
 	if (r < 0) {
-		dev_err(dsi->dev, "failed to init DSI output: %d\n", r);
+		dev_err(dsi->dev, "failed to create bridge/connector: %d\n", r);
+		dsi_bus_unlock(dsi);
+		return r;
+
+	}
+
+	r = drm_panel_attach(panel, dsi->connector);
+	if (r < 0) {
+		dev_err(dsi->dev, "unable to attach panel: %d\n", r);
 		dsi_bus_unlock(dsi);
 		return r;
 	}
+	dsi->connector->status = connector_status_connected;
 
 	dsi_bus_unlock(dsi);
+
+	if (dsi->drm_dev->mode_config.poll_enabled)
+		drm_kms_helper_hotplug_event(dsi->drm_dev);
+
+	dev_dbg(dsi->dev, "omap_dsi_host_attach: done\n");
+
 	return 0;
 }
 
@@ -5167,6 +5231,11 @@ int omap_dsi_host_detach(struct mipi_dsi_host *host,
 
 	if (dsi->vc[channel].dest != client)
 		return -EINVAL;
+
+	drm_connector_unregister(dsi->connector);
+	drm_connector_cleanup(dsi->connector);
+
+	omapdss_device_cleanup_output(&dsi->output);
 
 	omap_dsi_unregister_te_irq(dsi);
 	dsi->vc[channel].dest = NULL;
@@ -5297,6 +5366,43 @@ static int dsi_init_pll_data(struct dss_device *dss, struct dsi_data *dsi)
 	return 0;
 }
 
+static void omap_dsi_encoder_mode_set(struct drm_encoder *encoder,
+				      struct drm_display_mode *mode,
+				      struct drm_display_mode *adjusted_mode)
+{
+	struct dsi_data *dsi = encoder_to_omap(encoder);
+	struct videomode vm = { 0 };
+
+	drm_display_mode_to_videomode(adjusted_mode, &vm);
+	dss_mgr_set_timings(&dsi->output, &vm);
+}
+
+static const struct drm_encoder_helper_funcs omap_dsi_encoder_helper_funcs = {
+	.mode_set = omap_dsi_encoder_mode_set,
+};
+
+static const struct drm_encoder_funcs omap_dsi_encoder_funcs = {
+	.destroy = drm_encoder_cleanup,
+};
+
+static int omap_dsi_create_encoder(struct dsi_data *dsi)
+{
+	struct drm_encoder *encoder = &dsi->encoder;
+	int ret;
+
+	ret = drm_encoder_init(dsi->drm_dev, encoder, &omap_dsi_encoder_funcs,
+			       DRM_MODE_ENCODER_DSI, NULL);
+	if (ret) {
+		DSSERR("Failed to initialize encoder with drm\n");
+		return ret;
+	}
+	drm_encoder_helper_add(encoder, &omap_dsi_encoder_helper_funcs);
+
+	dsi->output.encoder = encoder;
+
+	return 0;
+}
+
 /* -----------------------------------------------------------------------------
  * Component Bind & Unbind
  */
@@ -5337,12 +5443,25 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 	dsi->debugfs.clks = dss_debugfs_create_file(dss, name,
 						    dsi_dump_dsi_clocks, dsi);
 
+	dsi->drm_dev = data;
+	r = omap_dsi_create_encoder(dsi);
+	if (r)
+		return r;
+
+	r = mipi_dsi_host_register(&dsi->host);
+	if (r < 0) {
+		dev_err(dsi->dev, "failed to register DSI host: %d\n", r);
+		return r;
+	}
+
 	return 0;
 }
 
 static void dsi_unbind(struct device *dev, struct device *master, void *data)
 {
 	struct dsi_data *dsi = dev_get_drvdata(dev);
+
+	mipi_dsi_host_unregister(&dsi->host);
 
 	dss_debugfs_remove_file(dsi->debugfs.clks);
 	dss_debugfs_remove_file(dsi->debugfs.irqs);
@@ -5385,6 +5504,9 @@ dsi_bridge_mode_valid(struct drm_bridge *bridge,
 	mutex_lock(&dsi->lock);
 	r = __dsi_calc_config(dsi, mode, &ctx);
 	mutex_unlock(&dsi->lock);
+
+	if (r)
+	DSSERR("Invalid DSI mode!\n");
 
 	return r ? MODE_CLOCK_RANGE : MODE_OK;
 }
@@ -5465,7 +5587,6 @@ static void dsi_uninit_output(struct dsi_data *dsi)
 	struct omap_dss_device *out = &dsi->output;
 
 	omapdss_device_unregister(out);
-	omapdss_device_cleanup_output(out);
 	dsi_bridge_cleanup(dsi);
 }
 
@@ -5723,15 +5844,9 @@ static int dsi_probe(struct platform_device *pdev)
 		goto err_pm_disable;
 	}
 
-	r = mipi_dsi_host_register(&dsi->host);
-	if (r < 0) {
-		dev_err(&pdev->dev, "failed to register DSI host: %d\n", r);
-		goto err_pm_disable;
-	}
-
 	r = dsi_init_output(dsi);
 	if (r)
-		goto err_dsi_host_unregister;
+		goto err_pm_disable;
 
 	r = component_add(&pdev->dev, &dsi_component_ops);
 	if (r)
@@ -5741,8 +5856,6 @@ static int dsi_probe(struct platform_device *pdev)
 
 err_uninit_output:
 	dsi_uninit_output(dsi);
-err_dsi_host_unregister:
-	mipi_dsi_host_unregister(&dsi->host);
 err_pm_disable:
 	pm_runtime_disable(dev);
 	return r;
@@ -5755,8 +5868,6 @@ static int dsi_remove(struct platform_device *pdev)
 	component_del(&pdev->dev, &dsi_component_ops);
 
 	dsi_uninit_output(dsi);
-
-	mipi_dsi_host_unregister(&dsi->host);
 
 	pm_runtime_disable(&pdev->dev);
 

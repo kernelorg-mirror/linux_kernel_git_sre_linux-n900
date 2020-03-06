@@ -470,19 +470,4 @@ int dss_pll_write_config_type_b(struct dss_pll *pll,
 		const struct dss_pll_clock_info *cinfo);
 int dss_pll_wait_reset_done(struct dss_pll *pll);
 
-extern struct platform_driver omap_dsshw_driver;
-extern struct platform_driver omap_dispchw_driver;
-#ifdef CONFIG_OMAP2_DSS_DSI
-extern struct platform_driver omap_dsihw_driver;
-#endif
-#ifdef CONFIG_OMAP2_DSS_VENC
-extern struct platform_driver omap_venchw_driver;
-#endif
-#ifdef CONFIG_OMAP4_DSS_HDMI
-extern struct platform_driver omapdss_hdmi4hw_driver;
-#endif
-#ifdef CONFIG_OMAP5_DSS_HDMI
-extern struct platform_driver omapdss_hdmi5hw_driver;
-#endif
-
 #endif

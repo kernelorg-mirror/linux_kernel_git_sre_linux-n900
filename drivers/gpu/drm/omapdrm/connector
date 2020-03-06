@@ -1,0 +1,34 @@
+omap_crtc.c:	if (omap_crtc->pipe->output->type == OMAP_DISPLAY_TYPE_HDMI) {
+omap_crtc.c:	struct omap_dss_device *dssdev = omap_crtc->pipe->output;
+omap_crtc.c:	if (omap_crtc->pipe->output->type != OMAP_DISPLAY_TYPE_DSI) {
+omap_crtc.c:	struct omap_dss_device *dssdev = omap_crtc->pipe->output;
+omap_crtc.c:	channel = pipe->output->dispc_channel;
+omap_crtc.c:			__func__, pipe->output->name);
+omap_drv.c:		omapdss_device_disconnect(NULL, pipe->output);
+omap_drv.c:		omapdss_device_put(pipe->output);
+omap_drv.c:		pipe->output = NULL;
+omap_drv.c:			pipe->output = omapdss_device_get(output);
+omap_drv.c:		if (pipe->output->encoder) {
+omap_drv.c:			pipe->encoder = pipe->output->encoder;
+omap_drv.c:			pipe->encoder = omap_encoder_init(dev, pipe->output);
+omap_drv.c:			if (!pipe->encoder)
+omap_drv.c:			if (pipe->output->bridge) {
+omap_drv.c:				ret = drm_bridge_attach(pipe->encoder,
+omap_drv.c:							pipe->output->bridge, NULL,
+omap_drv.c:						pipe->output->bridge->of_node);
+omap_drv.c:		id = omap_display_id(pipe->output);
+omap_drv.c:		pipe->alias_id = id >= 0 ? id : i;
+omap_drv.c:		enum omap_channel channel = pipe->output->dispc_channel;
+omap_drv.c:		struct drm_encoder *encoder = pipe->encoder;
+omap_drv.c:		if (!pipe->output->encoder) {
+omap_drv.c:			pipe->connector = drm_bridge_connector_init(dev, encoder);
+omap_drv.c:			if (IS_ERR(pipe->connector)) {
+omap_drv.c:					pipe->output->name);
+omap_drv.c:				return PTR_ERR(pipe->connector);
+omap_drv.c:			drm_connector_attach_encoder(pipe->connector, encoder);
+omap_drv.c:			if (pipe->output->panel) {
+omap_drv.c:				ret = drm_panel_attach(pipe->output->panel,
+omap_drv.c:						       pipe->connector);
+omap_drv.c:		pipe->crtc = crtc;
+omap_drv.c:		if (pipe->output->panel)
+omap_drv.c:			drm_panel_detach(pipe->output->panel);

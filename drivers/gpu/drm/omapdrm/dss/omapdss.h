@@ -266,6 +266,7 @@ struct omap_dss_device {
 	struct module *owner;
 
 	struct dss_device *dss;
+	struct drm_encoder *encoder;
 	struct drm_bridge *bridge;
 	struct drm_bridge *next_bridge;
 	struct drm_panel *panel;
@@ -460,5 +461,20 @@ void omapdss_gather_components(struct device *dev);
 
 int dss_bind_components(struct dss_device *dss, struct drm_device *drm_dev);
 void dss_unbind_components(struct dss_device *dss, struct drm_device *drm_dev);
+
+extern struct platform_driver omap_dsshw_driver;
+extern struct platform_driver omap_dispchw_driver;
+#ifdef CONFIG_OMAP2_DSS_DSI
+extern struct platform_driver omap_dsihw_driver;
+#endif
+#ifdef CONFIG_OMAP2_DSS_VENC
+extern struct platform_driver omap_venchw_driver;
+#endif
+#ifdef CONFIG_OMAP4_DSS_HDMI
+extern struct platform_driver omapdss_hdmi4hw_driver;
+#endif
+#ifdef CONFIG_OMAP5_DSS_HDMI
+extern struct platform_driver omapdss_hdmi5hw_driver;
+#endif
 
 #endif /* __OMAP_DRM_DSS_H */

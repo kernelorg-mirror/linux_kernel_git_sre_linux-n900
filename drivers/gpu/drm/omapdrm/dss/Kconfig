@@ -1,14 +1,4 @@
 # SPDX-License-Identifier: GPL-2.0-only
-menuconfig OMAP2_DSS
-	tristate "OMAP2+ Display Subsystem support"
-	select VIDEOMODE_HELPERS
-	select OMAP2_DSS_INIT
-	select HDMI
-	help
-	  OMAP2+ Display Subsystem support.
-
-if OMAP2_DSS
-
 config OMAP2_DSS_DEBUG
 	bool "Debug support"
 	default n
@@ -125,5 +115,3 @@ config OMAP2_DSS_SLEEP_AFTER_VENC_RESET
 
 	  This option enables the sleep, and is enabled by default. You can
 	  disable the sleep if it doesn't cause problems on your platform.
-
-endif

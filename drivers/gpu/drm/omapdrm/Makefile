@@ -4,8 +4,6 @@
 # Direct Rendering Infrastructure (DRI)
 #
 
-obj-y += dss/
-
 omapdrm-y := omap_drv.o \
 	omap_irq.o \
 	omap_debugfs.o \
@@ -17,6 +15,30 @@ omapdrm-y := omap_drv.o \
 	omap_gem_dmabuf.o \
 	omap_dmm_tiler.o \
 	tcm-sita.o
+
+omapdrm-y += dss/base.o \
+	dss/dss.o \
+	dss/dispc.o \
+	dss/display.o \
+	dss/dispc_coefs.o \
+	dss/output.o \
+	dss/pll.o \
+	dss/video-pll.o
+
+# Core DSS files
+omapdrm-$(CONFIG_OMAP2_DSS_DPI) += dss/dpi.o
+omapdrm-$(CONFIG_OMAP2_DSS_VENC) += dss/venc.o
+omapdrm-$(CONFIG_OMAP2_DSS_SDI) += dss/sdi.o
+omapdrm-$(CONFIG_OMAP2_DSS_DSI) += dss/dsi.o
+omapdrm-$(CONFIG_OMAP2_DSS_HDMI_COMMON) += dss/hdmi_common.o \
+	dss/hdmi_wp.o \
+	dss/hdmi_pll.o \
+	dss/hdmi_phy.o
+omapdrm-$(CONFIG_OMAP4_DSS_HDMI) += dss/hdmi4.o dss/hdmi4_core.o
+omapdrm-$(CONFIG_OMAP4_DSS_HDMI_CEC) += dss/hdmi4_cec.o
+omapdrm-$(CONFIG_OMAP5_DSS_HDMI) += dss/hdmi5.o dss/hdmi5_core.o
+
+ccflags-$(CONFIG_OMAP2_DSS_DEBUG) += -DDEBUG
 
 omapdrm-$(CONFIG_DRM_FBDEV_EMULATION) += omap_fbdev.o
 

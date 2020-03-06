@@ -279,19 +279,23 @@ static int omap_modeset_init(struct drm_device *dev)
 		struct omap_drm_pipeline *pipe = &priv->pipes[i];
 		int id;
 
-		pipe->encoder = omap_encoder_init(dev, pipe->output);
-		if (!pipe->encoder)
-			return -ENOMEM;
+		if (pipe->output->type == OMAP_DISPLAY_TYPE_DSI) {
+			pipe->encoder = pipe->output->encoder;
+		} else {
+			pipe->encoder = omap_encoder_init(dev, pipe->output);
+			if (!pipe->encoder)
+				return -ENOMEM;
 
-		if (pipe->output->bridge) {
-			ret = drm_bridge_attach(pipe->encoder,
-						pipe->output->bridge, NULL,
-						DRM_BRIDGE_ATTACH_NO_CONNECTOR);
-			if (ret < 0) {
-				dev_err(priv->dev,
-					"unable to attach bridge %pOF\n",
-					pipe->output->bridge->of_node);
-				return ret;
+			if (pipe->output->bridge) {
+				ret = drm_bridge_attach(pipe->encoder,
+							pipe->output->bridge, NULL,
+							DRM_BRIDGE_ATTACH_NO_CONNECTOR);
+				if (ret < 0) {
+					dev_err(priv->dev,
+						"unable to attach bridge %pOF\n",
+						pipe->output->bridge->of_node);
+					return ret;
+				}
 			}
 		}
 
@@ -323,28 +327,33 @@ static int omap_modeset_init(struct drm_device *dev)
 		struct drm_encoder *encoder = pipe->encoder;
 		struct drm_crtc *crtc;
 
-		pipe->connector = drm_bridge_connector_init(dev, encoder);
-		if (IS_ERR(pipe->connector)) {
-			dev_err(priv->dev,
-				"unable to create bridge connector for %s\n",
-				pipe->output->name);
-			return PTR_ERR(pipe->connector);
-		}
+		if (pipe->output->type != OMAP_DISPLAY_TYPE_DSI) {
+			pipe->connector = drm_bridge_connector_init(dev, encoder);
+			if (IS_ERR(pipe->connector)) {
+				dev_err(priv->dev,
+					"unable to create bridge connector for %s\n",
+					pipe->output->name);
+				return PTR_ERR(pipe->connector);
+			}
 
-		drm_connector_attach_encoder(pipe->connector, encoder);
+			drm_connector_attach_encoder(pipe->connector, encoder);
 
-		if (pipe->output->panel) {
-			ret = drm_panel_attach(pipe->output->panel,
-					       pipe->connector);
-			if (ret < 0)
-				return ret;
+			if (pipe->output->panel) {
+				ret = drm_panel_attach(pipe->output->panel,
+						       pipe->connector);
+				if (ret < 0)
+					return ret;
+			}
 		}
 
 		crtc = omap_crtc_init(dev, pipe, priv->planes[i]);
 		if (IS_ERR(crtc))
 			return PTR_ERR(crtc);
 
-		encoder->possible_crtcs = 1 << i;
+		if (encoder)
+			encoder->possible_crtcs = 1 << i;
+		else
+			dev_warn(priv->dev, "missing encoder!\n");
 		pipe->crtc = crtc;
 	}
 
@@ -764,6 +773,20 @@ static struct platform_driver pdev = {
 
 static struct platform_driver * const drivers[] = {
 	&omap_dmm_driver,
+	&omap_dsshw_driver,
+	&omap_dispchw_driver,
+#ifdef CONFIG_OMAP2_DSS_DSI
+	&omap_dsihw_driver,
+#endif
+#ifdef CONFIG_OMAP2_DSS_VENC
+	&omap_venchw_driver,
+#endif
+#ifdef CONFIG_OMAP4_DSS_HDMI
+	&omapdss_hdmi4hw_driver,
+#endif
+#ifdef CONFIG_OMAP5_DSS_HDMI
+	&omapdss_hdmi5hw_driver,
+#endif
 	&pdev,
 };
 
@@ -781,8 +804,7 @@ static void __exit omap_drm_fini(void)
 	platform_unregister_drivers(drivers, ARRAY_SIZE(drivers));
 }
 
-/* need late_initcall() so we load after dss_driver's are loaded */
-late_initcall(omap_drm_init);
+module_init(omap_drm_init);
 module_exit(omap_drm_fini);
 
 MODULE_AUTHOR("Rob Clark <rob@ti.com>");
